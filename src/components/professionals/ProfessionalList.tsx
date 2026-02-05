@@ -4,7 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, MoreHorizontal, FileEdit, Trash2 } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Plus, Search, MoreHorizontal, FileEdit, Trash2, Mail, Phone, PoundSterling } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProfessionalDialog } from "./ProfessionalDialog";
@@ -53,15 +54,15 @@ export function ProfessionalList() {
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h2 className="page-title">Professionals</h2>
-                <Button type="button" onClick={handleAdd}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <h2 className="page-title text-2xl sm:text-3xl">Professionals</h2>
+                <Button type="button" onClick={handleAdd} className="w-full sm:w-auto">
                     <Plus className="mr-2 h-4 w-4" /> Add Professional
                 </Button>
             </div>
 
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                <div className="relative flex-1 w-full sm:max-w-sm">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search professionals..."
@@ -71,7 +72,7 @@ export function ProfessionalList() {
                     />
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -83,7 +84,91 @@ export function ProfessionalList() {
                 </Select>
             </div>
 
-            <div className="rounded-md border bg-card">
+            {/* Mobile: cards */}
+            <div className="grid gap-3 md:hidden">
+                {filteredProfessionals.length === 0 ? (
+                    <div className="rounded-lg border border-border/60 bg-card p-8 text-center text-muted-foreground shadow-soft">
+                        No professionals found.
+                    </div>
+                ) : (
+                    filteredProfessionals.map((pro) => (
+                        <Card key={pro.id} className="shadow-soft overflow-hidden">
+                            <CardHeader className="pb-2">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-foreground truncate">{pro.name}</p>
+                                        <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
+                                            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                                            {pro.email}
+                                        </p>
+                                        {pro.phone && (
+                                            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
+                                                <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                                                {pro.phone}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onSelect={() => handleEdit(pro)}>
+                                                <FileEdit className="mr-2 h-4 w-4" /> Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(pro.id)}>
+                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-0 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={pro.status === "active" ? "outline" : "secondary"}>
+                                        {pro.status}
+                                    </Badge>
+                                    <span className="text-sm font-medium flex items-center gap-1.5">
+                                        <PoundSterling className="h-3.5 w-3.5" />
+                                        £{pro.ratePerHour}/h
+                                    </span>
+                                </div>
+                                <div className="flex gap-1 flex-wrap">
+                                    <TooltipProvider>
+                                        {DAYS_ORDER.map((dayKey) => {
+                                            const isAvailable = (pro.availability as Record<string, boolean>)[dayKey];
+                                            return (
+                                                <Tooltip key={dayKey}>
+                                                    <TooltipTrigger asChild>
+                                                        <div
+                                                            className={`
+                                                                flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
+                                                                ${isAvailable
+                                                                    ? "bg-primary text-primary-foreground"
+                                                                    : "bg-muted text-muted-foreground opacity-30"}
+                                                            `}
+                                                        >
+                                                            {AVAILABLE_DAYS_LABELS[dayKey]}
+                                                        </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{isAvailable ? "Available" : "Unavailable"}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            );
+                                        })}
+                                    </TooltipProvider>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block rounded-md border bg-card">
                 <Table>
                     <TableHeader>
                         <TableRow>
