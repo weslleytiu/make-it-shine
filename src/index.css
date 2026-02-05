@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MIS - Make It Shine | Soft Luxury design system
+   Palette: 60% Rose Chalk, 30% Dusty Rose, 10% Deep Rose (CTA), text Charcoal */
+
+@layer base {
+  :root {
+    --font-mis-serif: "Cormorant Garamond", Georgia, serif;
+    --font-mis-sans: system-ui, sans-serif;
+    /* Primary (60%) - Rose Chalk - backgrounds and clean areas */
+    --background: 30 33% 97%;
+    --foreground: 0 0% 20%;
+
+    --card: 30 25% 99%;
+    --card-foreground: 0 0% 20%;
+
+    --popover: 30 25% 99%;
+    --popover-foreground: 0 0% 20%;
+
+    /* CTA / Accent (10%) - Deep Rose - conversion buttons and focus points */
+    --primary: 0 21% 46%;
+    --primary-foreground: 30 33% 98%;
+
+    /* Secondary (30%) - Dusty Rose - graphic elements and icons */
+    --secondary: 0 35% 74%;
+    --secondary-foreground: 0 0% 20%;
+
+    --muted: 30 20% 94%;
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 0 35% 74%;
+    --accent-foreground: 0 0% 20%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 30 33% 98%;
+
+    /* Soft separation - no heavy lines */
+    --border: 0 20% 90%;
+    --input: 0 20% 90%;
+    --ring: 0 21% 46%;
+
+    --radius: 0.5rem;
+
+    /* Soft shadows (Soft Luxury) */
+    --shadow-soft: 0 2px 12px -2px rgb(142 93 93 / 0.08), 0 4px 20px -4px rgb(142 93 93 / 0.06);
+    --shadow-soft-lg: 0 8px 30px -8px rgb(142 93 93 / 0.12), 0 12px 40px -12px rgb(142 93 93 / 0.08);
+  }
+
+  .dark {
+    --background: 0 10% 12%;
+    --foreground: 30 20% 96%;
+
+    --card: 0 10% 15%;
+    --card-foreground: 30 20% 96%;
+
+    --popover: 0 10% 15%;
+    --popover-foreground: 30 20% 96%;
+
+    --primary: 0 35% 74%;
+    --primary-foreground: 0 0% 20%;
+
+    --secondary: 0 21% 35%;
+    --secondary-foreground: 30 20% 96%;
+
+    --muted: 0 10% 22%;
+    --muted-foreground: 0 15% 60%;
+
+    --accent: 0 35% 74%;
+    --accent-foreground: 0 0% 20%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 30 20% 96%;
+
+    --border: 0 15% 22%;
+    --input: 0 15% 22%;
+    --ring: 0 35% 74%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Editorial-style page titles (MIS brand) */
+  .page-title {
+    @apply font-serif text-3xl font-semibold tracking-tight text-foreground;
+  }
+}
