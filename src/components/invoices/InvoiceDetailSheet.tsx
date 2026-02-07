@@ -15,9 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format, isPast, startOfDay, differenceInDays } from "date-fns";
 import type { Invoice } from "@/lib/schemas";
-import { Send, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Plus, Trash2, Mail } from "lucide-react";
 
 interface InvoiceDetailSheetProps {
   invoice: Invoice | null;
@@ -37,16 +38,14 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
 
   const isDraft = invoice.status === "draft";
   const canEdit = isDraft;
+  const isOverdue = invoice.status === "pending" && isPast(startOfDay(invoice.dueDate));
+  const overdueDays = isOverdue ? differenceInDays(startOfDay(new Date()), startOfDay(invoice.dueDate)) : 0;
   const uninvoicedJobs = (uninvoicedQuery.data ?? []).filter(
     (j) => !jobs.some((ij) => ij.id === j.id)
   );
 
-  const handleMarkPending = () => {
-    updateMutation.mutate(
-      { id: invoice.id, data: { status: "pending" } },
-      { onSuccess: () => onOpenChange(false) }
-    );
-  };
+  // When backend has sentAt: show "Sent on {date}" instead of Send button
+  const wasSent = false; // TODO: invoice.sentAt != null when we persist send date
 
   const handleMarkPaid = () => {
     updateMutation.mutate(
@@ -71,12 +70,13 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
     removeJobMutation.mutate({ invoiceId: invoice.id, jobId });
   };
 
+  const displayStatus = isOverdue ? "overdue" : invoice.status;
   const statusVariant =
-    invoice.status === "paid"
+    displayStatus === "paid"
       ? "default"
-      : invoice.status === "pending" || invoice.status === "overdue"
+      : displayStatus === "pending" || displayStatus === "overdue"
         ? "secondary"
-        : invoice.status === "cancelled"
+        : displayStatus === "cancelled"
           ? "destructive"
           : "outline";
 
@@ -86,7 +86,7 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {invoice.invoiceNumber}
-            <Badge variant={statusVariant}>{invoice.status}</Badge>
+            <Badge variant={statusVariant}>{displayStatus}</Badge>
           </SheetTitle>
         </SheetHeader>
         <div className="mt-6 space-y-4">
@@ -94,7 +94,14 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
             <p><span className="font-medium text-foreground">Client:</span> {clientName}</p>
             <p>Period: {format(invoice.periodStart, "dd/MM/yyyy")} – {format(invoice.periodEnd, "dd/MM/yyyy")}</p>
             <p>Issue date: {format(invoice.issueDate, "dd/MM/yyyy")}</p>
-            <p>Due date: {format(invoice.dueDate, "dd/MM/yyyy")}</p>
+            <p>
+              Due date: {format(invoice.dueDate, "dd/MM/yyyy")}
+              {isOverdue && (
+                <span className="ml-2 font-medium text-destructive">
+                  (Overdue by {overdueDays} {overdueDays === 1 ? "day" : "days"})
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex justify-between items-center border-t pt-4">
             <span className="font-medium">Subtotal</span>
@@ -176,15 +183,33 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
           <div className="flex flex-wrap gap-2 pt-4 border-t">
             {isDraft && (
               <>
-                <Button size="sm" onClick={handleMarkPending} disabled={updateMutation.isPending}>
-                  <Send className="mr-2 h-4 w-4" /> Mark as sent
-                </Button>
+                {wasSent ? (
+                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Mail className="h-4 w-4" /> Sent to client
+                    {/* TODO: show sent date when invoice.sentAt exists, e.g. "Sent on {format(invoice.sentAt, 'dd/MM/yyyy')}" */}
+                  </span>
+                ) : (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" disabled aria-disabled>
+                            <Mail className="mr-2 h-4 w-4" /> Send to client
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <Button size="sm" variant="outline" onClick={handleCancel} disabled={updateMutation.isPending}>
                   <XCircle className="mr-2 h-4 w-4" /> Cancel invoice
                 </Button>
               </>
             )}
-            {invoice.status === "pending" && (
+            {(invoice.status === "pending" || isOverdue) && (
               <>
                 <Button size="sm" onClick={handleMarkPaid} disabled={updateMutation.isPending}>
                   <CheckCircle className="mr-2 h-4 w-4" /> Mark as paid

@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, Trash2, User, Calendar } from "lucide-react";
+import { FileText, Trash2, User, Calendar, CalendarClock } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import type { Invoice } from "@/lib/schemas";
 interface InvoiceCardProps {
   invoice: Invoice;
   clientName: string;
+  displayStatus: "draft" | "pending" | "paid" | "overdue" | "cancelled";
   onOpen: (invoice: Invoice) => void;
   onDelete: (id: string) => void;
   isDeleting?: boolean;
@@ -22,8 +23,9 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
   draft: "outline",
 };
 
-export function InvoiceCard({ invoice, clientName, onOpen, onDelete, isDeleting }: InvoiceCardProps) {
-  const variant = statusVariant[invoice.status] ?? "outline";
+export function InvoiceCard({ invoice, clientName, displayStatus, onOpen, onDelete, isDeleting }: InvoiceCardProps) {
+  const variant = statusVariant[displayStatus] ?? "outline";
+  const canDelete = invoice.status === "draft";
 
   return (
     <Card
@@ -36,19 +38,21 @@ export function InvoiceCard({ invoice, clientName, onOpen, onDelete, isDeleting 
             <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
             <h3 className="truncate text-lg font-semibold text-foreground">{invoice.invoiceNumber}</h3>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 flex-shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(invoice.id);
-            }}
-            disabled={isDeleting}
-            aria-label="Delete invoice"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(invoice.id);
+              }}
+              disabled={isDeleting}
+              aria-label="Delete invoice"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
@@ -62,9 +66,13 @@ export function InvoiceCard({ invoice, clientName, onOpen, onDelete, isDeleting 
             {format(invoice.periodStart, "dd/MM/yyyy")} – {format(invoice.periodEnd, "dd/MM/yyyy")}
           </span>
         </div>
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+          <span className="text-sm">Due {format(invoice.dueDate, "dd/MM/yyyy")}</span>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Badge variant={variant} className="capitalize">
-            {invoice.status}
+            {displayStatus}
           </Badge>
           <span className="font-semibold text-foreground">£{invoice.total.toFixed(2)}</span>
         </div>
