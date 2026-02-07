@@ -1,4 +1,7 @@
 import path from "path"
+import type { IncomingMessage } from "node:http"
+import type { ServerResponse } from "node:http"
+import type { ViteDevServer } from "vite"
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -9,25 +12,20 @@ function spaFallback() {
     const q = url.includes('?') ? url.slice(url.indexOf('?')) : ''
     return '/' + q
   }
+  const handler = (req: IncomingMessage, _res: ServerResponse, next: () => void) => {
+    if (req.method !== 'GET' || !req.url) return next()
+    const pathname = req.url.replace(/\?.*/, '')
+    if (pathname.startsWith('/@') || pathname.startsWith('/node_modules') || staticExtensions.test(pathname)) return next()
+    req.url = rewrite(req.url)
+    next()
+  }
   return {
     name: 'spa-fallback',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.method !== 'GET' || !req.url) return next()
-        const pathname = req.url.replace(/\?.*/, '')
-        if (pathname.startsWith('/@') || pathname.startsWith('/node_modules') || staticExtensions.test(pathname)) return next()
-        req.url = rewrite(req.url)
-        next()
-      })
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use(handler)
     },
-    configurePreviewServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.method !== 'GET' || !req.url) return next()
-        const pathname = req.url.replace(/\?.*/, '')
-        if (pathname.startsWith('/@') || staticExtensions.test(pathname)) return next()
-        req.url = rewrite(req.url)
-        next()
-      })
+    configurePreviewServer(server: { middlewares: { use: (fn: typeof handler) => void } }) {
+      server.middlewares.use(handler)
     },
   }
 }

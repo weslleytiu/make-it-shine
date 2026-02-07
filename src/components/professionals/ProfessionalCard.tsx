@@ -1,4 +1,3 @@
-import React from "react";
 import { Mail, Phone, MoreHorizontal, FileEdit, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

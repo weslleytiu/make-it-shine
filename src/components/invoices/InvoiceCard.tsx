@@ -1,4 +1,3 @@
-import React from "react";
 import { FileText, Trash2, User, Calendar, CalendarClock } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
