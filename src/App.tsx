@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
+import Landing from "@/pages/Landing";
 import Dashboard from "@/pages/Dashboard";
 import Clients from "@/pages/Clients";
 import Professionals from "@/pages/Professionals";
@@ -12,7 +13,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/dashboard" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="clients" element={<Clients />} />
           <Route path="professionals" element={<Professionals />} />
@@ -21,6 +23,7 @@ function App() {
           <Route path="invoices" element={<Invoices />} />
           <Route path="finance" element={<Finance />} />
         </Route>
+        <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

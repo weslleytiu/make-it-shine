@@ -28,7 +28,7 @@ export function Layout() {
                         {navItems.map((item) => {
                             const isActive =
                                 location.pathname === item.href ||
-                                (item.href !== "/" && location.pathname.startsWith(item.href));
+                                (item.href !== "/dashboard" && location.pathname.startsWith(item.href));
                             return (
                                 <Link
                                     key={item.href}

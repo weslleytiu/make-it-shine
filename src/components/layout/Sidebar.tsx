@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 import { LayoutDashboard, Users, UserCog, Calendar, FileText, PoundSterling, Sparkles } from "lucide-react";
 
 export const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/clients", label: "Clients", icon: Users },
-    { href: "/professionals", label: "Professionals", icon: UserCog },
-    { href: "/jobs", label: "Jobs", icon: Calendar },
-    { href: "/invoices", label: "Invoices", icon: FileText },
-    { href: "/finance", label: "Finance", icon: PoundSterling },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/clients", label: "Clients", icon: Users },
+    { href: "/dashboard/professionals", label: "Professionals", icon: UserCog },
+    { href: "/dashboard/jobs", label: "Jobs", icon: Calendar },
+    { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
+    { href: "/dashboard/finance", label: "Finance", icon: PoundSterling },
 ];
 
 export function Sidebar() {
@@ -30,7 +30,7 @@ export function Sidebar() {
             <nav className="flex-1 space-y-1 px-3 py-4">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.href ||
-                        (item.href !== "/" && location.pathname.startsWith(item.href));
+                        (item.href !== "/dashboard" && location.pathname.startsWith(item.href));
                     return (
                         <Link
                             key={item.href}

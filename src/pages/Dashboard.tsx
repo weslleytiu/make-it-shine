@@ -55,7 +55,7 @@ export default function Dashboard() {
                     </CardContent>
                 </Card>
                 <Card className="transition-shadow hover:shadow-soft">
-                    <Link to="/professionals" className="block">
+                    <Link to="/dashboard/professionals" className="block">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Professionals</CardTitle>
                             <UserCog className="h-4 w-4 text-muted-foreground" />
@@ -126,7 +126,7 @@ export default function Dashboard() {
                                             </TableCell>
                                             <TableCell>
                                                 <Link
-                                                    to={`/professionals/${job.professionalId}`}
+                                                    to={`/dashboard/professionals/${job.professionalId}`}
                                                     className="text-primary hover:underline"
                                                 >
                                                     {getProName(job.professionalId)}

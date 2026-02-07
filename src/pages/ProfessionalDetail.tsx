@@ -46,7 +46,7 @@ export default function ProfessionalDetail() {
   if (error || !professional) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/professionals")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/professionals")}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Professionals
         </Button>
         <p className="text-muted-foreground">Professional not found.</p>
@@ -61,11 +61,11 @@ export default function ProfessionalDetail() {
     inactive: "bg-muted text-muted-foreground",
   };
 
-  const handleEdit = () => navigate("/professionals?edit=" + professional.id);
+  const handleEdit = () => navigate("/dashboard/professionals?edit=" + professional.id);
   const handleDelete = () => {
     if (window.confirm("Are you sure you want to delete this professional?")) {
       deleteMutation.mutate(professional.id, {
-        onSuccess: () => navigate("/professionals"),
+        onSuccess: () => navigate("/dashboard/professionals"),
       });
     }
   };
@@ -73,7 +73,7 @@ export default function ProfessionalDetail() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/professionals")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/professionals")}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Professionals
         </Button>
       </div>
