@@ -91,13 +91,13 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100%-2rem)] max-w-full sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEditing ? "Edit Job" : "New Schedule"}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                                 control={form.control as any}
                                 name="clientId"
@@ -149,7 +149,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                             />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <FormField
                                 control={form.control as any}
                                 name="date"
@@ -197,7 +197,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                                 control={form.control as any}
                                 name="type"
