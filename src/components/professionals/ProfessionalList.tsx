@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useProfessionals, useDeleteProfessional } from "@/hooks/useProfessionals";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -9,10 +10,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProfessionalDialog } from "./ProfessionalDialog";
 import { ProfessionalCard } from "./ProfessionalCard";
+import { ProfessionalDetailSheet } from "./ProfessionalDetailSheet";
 import type { Professional } from "@/lib/schemas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function ProfessionalList() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const { data: professionals, isLoading } = useProfessionals();
     const deleteMutation = useDeleteProfessional();
     const [search, setSearch] = useState("");
@@ -20,6 +23,23 @@ export function ProfessionalList() {
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null);
+    const [detailProfessional, setDetailProfessional] = useState<Professional | null>(null);
+    const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
+
+    const editId = searchParams.get("edit");
+    useEffect(() => {
+        if (!editId || !professionals) return;
+        const pro = professionals.find((p) => p.id === editId);
+        if (pro) {
+            setSelectedProfessional(pro);
+            setIsDialogOpen(true);
+            setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete("edit");
+                return next;
+            }, { replace: true });
+        }
+    }, [editId, professionals, setSearchParams]);
 
     if (isLoading) return <div>Loading professionals...</div>;
 
@@ -45,6 +65,16 @@ export function ProfessionalList() {
         if (window.confirm("Are you sure you want to delete this professional?")) {
             deleteMutation.mutate(id);
         }
+    };
+
+    const openDetail = (pro: Professional) => {
+        setDetailProfessional(pro);
+        setIsDetailSheetOpen(true);
+    };
+
+    const handleDetailEdit = (pro: Professional) => {
+        setSelectedProfessional(pro);
+        setTimeout(() => setIsDialogOpen(true), 0);
     };
 
     const DAYS_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -97,6 +127,7 @@ export function ProfessionalList() {
                             professional={pro}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
+                            onView={openDetail}
                         />
                     ))
                 )}
@@ -123,7 +154,11 @@ export function ProfessionalList() {
                             </TableRow>
                         ) : (
                             filteredProfessionals.map((pro) => (
-                                <TableRow key={pro.id}>
+                                <TableRow
+                                    key={pro.id}
+                                    className="cursor-pointer hover:bg-muted/50"
+                                    onClick={() => openDetail(pro)}
+                                >
                                     <TableCell className="font-medium">
                                         <div>{pro.name}</div>
                                         <div className="text-sm text-muted-foreground">{pro.email}</div>
@@ -161,7 +196,7 @@ export function ProfessionalList() {
                                             {pro.status}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" className="h-8 w-8 p-0">
@@ -189,6 +224,13 @@ export function ProfessionalList() {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 professional={selectedProfessional}
+            />
+            <ProfessionalDetailSheet
+                professional={detailProfessional}
+                open={isDetailSheetOpen}
+                onOpenChange={setIsDetailSheetOpen}
+                onEdit={handleDetailEdit}
+                onDelete={handleDelete}
             />
         </div>
     );

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
 import { useJobs } from "@/hooks/useJobs";
@@ -53,15 +54,17 @@ export default function Dashboard() {
                         <p className="text-xs text-muted-foreground">Total active contracts</p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Professionals</CardTitle>
-                        <UserCog className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.activePros}</div>
-                        <p className="text-xs text-muted-foreground">Active cleaners</p>
-                    </CardContent>
+                <Card className="transition-shadow hover:shadow-soft">
+                    <Link to="/professionals" className="block">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Professionals</CardTitle>
+                            <UserCog className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{stats.activePros}</div>
+                            <p className="text-xs text-muted-foreground">Active cleaners</p>
+                        </CardContent>
+                    </Link>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -121,7 +124,14 @@ export default function Dashboard() {
                                                     {format(job.date, "EEE d MMM")} at {job.startTime}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{getProName(job.professionalId)}</TableCell>
+                                            <TableCell>
+                                                <Link
+                                                    to={`/professionals/${job.professionalId}`}
+                                                    className="text-primary hover:underline"
+                                                >
+                                                    {getProName(job.professionalId)}
+                                                </Link>
+                                            </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className="capitalize">
                                                     {job.status}

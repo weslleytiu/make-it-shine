@@ -25,9 +25,10 @@ interface ProfessionalCardProps {
   professional: Professional;
   onEdit: (professional: Professional) => void;
   onDelete: (id: string) => void;
+  onView?: (professional: Professional) => void;
 }
 
-export function ProfessionalCard({ professional, onEdit, onDelete }: ProfessionalCardProps) {
+export function ProfessionalCard({ professional, onEdit, onDelete, onView }: ProfessionalCardProps) {
   const availability = professional.availability as Record<string, boolean>;
 
   const statusStyles: Record<string, string> = {
@@ -37,7 +38,13 @@ export function ProfessionalCard({ professional, onEdit, onDelete }: Professiona
   };
 
   return (
-    <Card className="w-full overflow-hidden border-border/60 bg-card shadow-soft transition-shadow duration-200 hover:shadow-soft-lg">
+    <Card
+      className={`w-full overflow-hidden border-border/60 bg-card shadow-soft transition-shadow duration-200 hover:shadow-soft-lg ${onView ? "cursor-pointer" : ""}`}
+      onClick={onView ? () => onView(professional) : undefined}
+      role={onView ? "button" : undefined}
+      tabIndex={onView ? 0 : undefined}
+      onKeyDown={onView ? (e) => e.key === "Enter" && onView(professional) : undefined}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-lg font-semibold text-foreground">{professional.name}</h3>
@@ -48,6 +55,7 @@ export function ProfessionalCard({ professional, onEdit, onDelete }: Professiona
                 size="icon"
                 className="h-8 w-8 flex-shrink-0 rounded-lg"
                 aria-label="Open menu"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
               </Button>
