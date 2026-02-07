@@ -10,6 +10,7 @@ import { Plus, FileText, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { CreateInvoiceDialog } from "@/components/invoices/CreateInvoiceDialog";
 import { InvoiceDetailSheet } from "@/components/invoices/InvoiceDetailSheet";
+import { InvoiceCard } from "@/components/invoices/InvoiceCard";
 import type { Invoice } from "@/lib/schemas";
 
 export default function Invoices() {
@@ -72,7 +73,28 @@ export default function Invoices() {
         </Select>
       </div>
 
-      <Card>
+      {/* Mobile: cards */}
+      <div className="grid gap-3 md:hidden">
+        {filteredInvoices.length === 0 ? (
+          <div className="rounded-lg border border-border/60 bg-card p-8 text-center text-muted-foreground shadow-soft">
+            No invoices yet. Create one to get started.
+          </div>
+        ) : (
+          filteredInvoices.map((inv) => (
+            <InvoiceCard
+              key={inv.id}
+              invoice={inv}
+              clientName={clientMap.get(inv.clientId) ?? "—"}
+              onOpen={openDetail}
+              onDelete={handleDelete}
+              isDeleting={deleteMutation.isPending}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <Card className="hidden md:block">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />

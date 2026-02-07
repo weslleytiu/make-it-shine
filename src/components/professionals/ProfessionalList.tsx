@@ -4,11 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Plus, Search, MoreHorizontal, FileEdit, Trash2, Mail, Phone, PoundSterling } from "lucide-react";
+import { Plus, Search, MoreHorizontal, FileEdit, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProfessionalDialog } from "./ProfessionalDialog";
+import { ProfessionalCard } from "./ProfessionalCard";
 import type { Professional } from "@/lib/schemas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -92,77 +92,12 @@ export function ProfessionalList() {
                     </div>
                 ) : (
                     filteredProfessionals.map((pro) => (
-                        <Card key={pro.id} className="shadow-soft overflow-hidden">
-                            <CardHeader className="pb-2">
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                        <p className="font-medium text-foreground truncate">{pro.name}</p>
-                                        <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
-                                            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                                            {pro.email}
-                                        </p>
-                                        {pro.phone && (
-                                            <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
-                                                <Phone className="h-3.5 w-3.5 flex-shrink-0" />
-                                                {pro.phone}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onSelect={() => handleEdit(pro)}>
-                                                <FileEdit className="mr-2 h-4 w-4" /> Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(pro.id)}>
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="pt-0 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Badge variant={pro.status === "active" ? "outline" : "secondary"}>
-                                        {pro.status}
-                                    </Badge>
-                                    <span className="text-sm font-medium flex items-center gap-1.5">
-                                        <PoundSterling className="h-3.5 w-3.5" />
-                                        £{pro.ratePerHour}/h
-                                    </span>
-                                </div>
-                                <div className="flex gap-1 flex-wrap">
-                                    <TooltipProvider>
-                                        {DAYS_ORDER.map((dayKey) => {
-                                            const isAvailable = (pro.availability as Record<string, boolean>)[dayKey];
-                                            return (
-                                                <Tooltip key={dayKey}>
-                                                    <TooltipTrigger asChild>
-                                                        <div
-                                                            className={`
-                                                                flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold
-                                                                ${isAvailable
-                                                                    ? "bg-primary text-primary-foreground"
-                                                                    : "bg-muted text-muted-foreground opacity-30"}
-                                                            `}
-                                                        >
-                                                            {AVAILABLE_DAYS_LABELS[dayKey]}
-                                                        </div>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>{isAvailable ? "Available" : "Unavailable"}</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            );
-                                        })}
-                                    </TooltipProvider>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <ProfessionalCard
+                            key={pro.id}
+                            professional={pro}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                        />
                     ))
                 )}
             </div>
