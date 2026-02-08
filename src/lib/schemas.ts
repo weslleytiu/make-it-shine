@@ -7,6 +7,7 @@ export const FrequencyEnum = z.enum(["weekly", "biweekly", "triweekly", "monthly
 export const ClientStatusEnum = z.enum(["active", "inactive"]);
 export const ProfessionalStatusEnum = z.enum(["active", "vacation", "inactive"]);
 export const JobTypeEnum = z.enum(["one_time", "recurring"]);
+export const ServiceKindEnum = z.enum(["regular", "deep_clean"]);
 export const JobStatusEnum = z.enum(["scheduled", "in_progress", "completed", "cancelled"]);
 export const InvoiceFrequencyEnum = z.enum(["per_job", "weekly", "biweekly", "monthly", "manual"]);
 export const InvoiceStatusEnum = z.enum(["draft", "pending", "paid", "overdue", "cancelled"]);
@@ -31,6 +32,7 @@ export const clientSchema = z.object({
     contractType: ContractTypeEnum,
     frequency: FrequencyEnum.optional(),
     pricePerHour: z.coerce.number().min(0.01, "Price must be positive"),
+    deepCleanPricePerHour: z.coerce.number().min(0.01).nullable().optional(),
     status: ClientStatusEnum.default("active"),
     notes: z.string().optional(),
     createdAt: z.date().optional(), // Managed by backend/service
@@ -58,6 +60,7 @@ export const professionalSchema = z.object({
     phone: z.string().regex(phoneRegex, "Invalid UK Phone number"),
     email: z.string().email("Invalid email address"),
     ratePerHour: z.coerce.number().min(0.01, "Rate must be positive"),
+    deepCleanRatePerHour: z.coerce.number().min(0.01).nullable().optional(),
     availability: professionalAvailabilitySchema,
     status: ProfessionalStatusEnum.default("active"),
     createdAt: z.date().optional(),
@@ -71,6 +74,7 @@ export const jobSchema = z.object({
     startTime: z.string().regex(/^\d{2}:\d{2}$/, "Format HH:MM"),
     durationHours: z.coerce.number().min(0.5, "Min duration 30min"),
     type: JobTypeEnum,
+    serviceKind: ServiceKindEnum.default("regular"),
     status: JobStatusEnum.default("scheduled"),
     notes: z.string().optional(),
 

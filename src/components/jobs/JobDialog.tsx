@@ -41,6 +41,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
             startTime: "09:00",
             durationHours: 2,
             type: "one_time",
+            serviceKind: "regular",
             status: "scheduled",
             notes: "",
         },
@@ -58,6 +59,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                     startTime: "09:00",
                     durationHours: 2,
                     type: "one_time",
+                    serviceKind: "regular",
                     status: "scheduled",
                     notes: "",
                 });
@@ -175,7 +177,11 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                     <FormItem>
                                         <FormLabel>Start Time</FormLabel>
                                         <FormControl>
-                                            <Input type="time" {...field} />
+                                            <Input
+                                                type="time"
+                                                {...field}
+                                                value={field.value ?? ""}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -219,7 +225,30 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                     </FormItem>
                                 )}
                             />
+                            <FormField
+                                control={form.control as any}
+                                name="serviceKind"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Service</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Service" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="regular">Regular</SelectItem>
+                                                <SelectItem value="deep_clean">Deep clean</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                                 control={form.control as any}
                                 name="status"

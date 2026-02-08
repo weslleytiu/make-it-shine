@@ -36,6 +36,7 @@ export function ClientDialog({ open, onOpenChange, client }: ClientDialogProps) 
             contractType: "fixed",
             frequency: "weekly",
             pricePerHour: 15,
+            deepCleanPricePerHour: undefined,
             status: "active",
             notes: "",
             invoiceFrequency: "monthly",
@@ -66,6 +67,7 @@ export function ClientDialog({ open, onOpenChange, client }: ClientDialogProps) 
                     contractType: "fixed",
                     frequency: "weekly",
                     pricePerHour: 15,
+                    deepCleanPricePerHour: undefined,
                     status: "active",
                     notes: "",
                     invoiceFrequency: "monthly",
@@ -280,6 +282,31 @@ export function ClientDialog({ open, onOpenChange, client }: ClientDialogProps) 
                                 )}
                             />
                         </div>
+
+                        <FormField
+                            control={form.control as any}
+                            name="deepCleanPricePerHour"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Deep clean price/hour (£)</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="number"
+                                            step="0.5"
+                                            min={0}
+                                            placeholder="Optional"
+                                            {...field}
+                                            value={field.value ?? ""}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                field.onChange(v === "" ? undefined : Number(v));
+                                            }}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <FormField
                             control={form.control as any}

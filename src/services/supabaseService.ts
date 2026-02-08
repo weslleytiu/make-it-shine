@@ -3,6 +3,16 @@ import type { Client, Professional, Job, Invoice, InvoiceJob } from "@/lib/schem
 import type { Quote } from "@/types/landing";
 import { dateToLocalDateString, localDateStringToDate } from "@/lib/utils";
 
+/** Normalize DB time (e.g. "09:00:00") to HH:MM for form/schema validation */
+function normalizeTimeToHHMM(time: string): string {
+  if (!time) return time;
+  const match = time.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return time;
+  const h = match[1].padStart(2, "0");
+  const m = match[2];
+  return `${h}:${m}`;
+}
+
 // Database types (snake_case from Supabase)
 interface DbClient {
   id: string;
@@ -16,6 +26,7 @@ interface DbClient {
   contract_type: "fixed" | "on_demand";
   frequency: "weekly" | "biweekly" | "triweekly" | "monthly" | null;
   price_per_hour: number;
+  deep_clean_price_per_hour?: number | null;
   status: "active" | "inactive";
   notes: string | null;
   created_at: string;
@@ -57,6 +68,7 @@ interface DbProfessional {
   phone: string;
   email: string;
   rate_per_hour: number;
+  deep_clean_rate_per_hour?: number | null;
   availability: {
     mon: boolean;
     tue: boolean;
@@ -79,6 +91,7 @@ interface DbJob {
   start_time: string;
   duration_hours: number;
   type: "one_time" | "recurring";
+  service_kind?: "regular" | "deep_clean";
   status: "scheduled" | "in_progress" | "completed" | "cancelled";
   notes: string | null;
   total_price: number | null;
@@ -153,6 +166,7 @@ function dbClientToClient(db: DbClient): Client {
     contractType: db.contract_type,
     frequency: db.frequency,
     pricePerHour: db.price_per_hour,
+    deepCleanPricePerHour: db.deep_clean_price_per_hour ?? undefined,
     status: db.status,
     notes: db.notes || undefined,
     createdAt: new Date(db.created_at),
@@ -176,6 +190,7 @@ function clientToDbClient(client: Omit<Client, "id" | "createdAt">): Omit<DbClie
     contract_type: client.contractType,
     frequency: client.frequency ?? null,
     price_per_hour: client.pricePerHour,
+    deep_clean_price_per_hour: client.deepCleanPricePerHour ?? null,
     status: client.status,
     notes: client.notes || null,
     invoice_frequency: client.invoiceFrequency ?? "monthly",
@@ -193,6 +208,7 @@ function dbProfessionalToProfessional(db: DbProfessional): Professional {
     phone: db.phone,
     email: db.email,
     ratePerHour: db.rate_per_hour,
+    deepCleanRatePerHour: db.deep_clean_rate_per_hour ?? undefined,
     availability: db.availability,
     status: db.status,
     createdAt: new Date(db.created_at),
@@ -207,24 +223,43 @@ function professionalToDbProfessional(
     phone: pro.phone,
     email: pro.email,
     rate_per_hour: pro.ratePerHour,
+    deep_clean_rate_per_hour: pro.deepCleanRatePerHour ?? null,
     availability: pro.availability,
     status: pro.status,
   };
 }
 
+function getEffectiveClientRate(client: Client, serviceKind: "regular" | "deep_clean"): number {
+  if (serviceKind === "deep_clean" && client.deepCleanPricePerHour != null) {
+    return client.deepCleanPricePerHour;
+  }
+  return client.pricePerHour;
+}
+
+function getEffectiveProfessionalRate(professional: Professional, serviceKind: "regular" | "deep_clean"): number {
+  if (serviceKind === "deep_clean" && professional.deepCleanRatePerHour != null) {
+    return professional.deepCleanRatePerHour;
+  }
+  return professional.ratePerHour;
+}
+
 function dbJobToJob(db: DbJob, client: Client, professional: Professional): Job {
+  const serviceKind = db.service_kind ?? "regular";
+  const clientRate = getEffectiveClientRate(client, serviceKind);
+  const professionalRate = getEffectiveProfessionalRate(professional, serviceKind);
   return {
     id: db.id,
     clientId: db.client_id,
     professionalId: db.professional_id,
     date: localDateStringToDate(db.date),
-    startTime: db.start_time,
+    startTime: normalizeTimeToHHMM(db.start_time),
     durationHours: db.duration_hours,
     type: db.type,
+    serviceKind,
     status: db.status,
     notes: db.notes || undefined,
-    totalPrice: db.total_price ?? db.duration_hours * client.pricePerHour,
-    cost: db.cost ?? db.duration_hours * professional.ratePerHour,
+    totalPrice: db.total_price ?? db.duration_hours * clientRate,
+    cost: db.cost ?? db.duration_hours * professionalRate,
     createdAt: new Date(db.created_at),
     recurringGroupId: db.recurring_group_id || undefined,
   };
@@ -238,6 +273,7 @@ function jobToDbJob(job: Omit<Job, "id" | "createdAt" | "totalPrice" | "cost">):
     start_time: job.startTime,
     duration_hours: job.durationHours,
     type: job.type,
+    service_kind: job.serviceKind ?? "regular",
     status: job.status,
     notes: job.notes || null,
     recurring_group_id: job.recurringGroupId || null,
@@ -339,6 +375,7 @@ class SupabaseService {
     if (updates.contractType !== undefined) dbUpdates.contract_type = updates.contractType;
     if (updates.frequency !== undefined) dbUpdates.frequency = updates.frequency ?? null;
     if (updates.pricePerHour !== undefined) dbUpdates.price_per_hour = updates.pricePerHour;
+    if (updates.deepCleanPricePerHour !== undefined) dbUpdates.deep_clean_price_per_hour = updates.deepCleanPricePerHour ?? null;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes || null;
     if (updates.invoiceFrequency !== undefined) dbUpdates.invoice_frequency = updates.invoiceFrequency;
@@ -412,6 +449,7 @@ class SupabaseService {
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.ratePerHour !== undefined) dbUpdates.rate_per_hour = updates.ratePerHour;
+    if (updates.deepCleanRatePerHour !== undefined) dbUpdates.deep_clean_rate_per_hour = updates.deepCleanRatePerHour ?? null;
     if (updates.availability !== undefined) dbUpdates.availability = updates.availability;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
 
@@ -445,12 +483,14 @@ class SupabaseService {
         clients:client_id (
           id,
           name,
-          price_per_hour
+          price_per_hour,
+          deep_clean_price_per_hour
         ),
         professionals:professional_id (
           id,
           name,
-          rate_per_hour
+          rate_per_hour,
+          deep_clean_rate_per_hour
         )
       `)
       .order("date", { ascending: false })
@@ -463,8 +503,8 @@ class SupabaseService {
     // Transform the data
     return (data as any[]).map((item) => {
       const dbJob = item as DbJob;
-      const client = item.clients as { id: string; name: string; price_per_hour: number };
-      const professional = item.professionals as { id: string; name: string; rate_per_hour: number };
+      const client = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
+      const professional = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
 
       // Create minimal Client and Professional objects for conversion
       const clientObj: Client = {
@@ -479,6 +519,7 @@ class SupabaseService {
         contractType: "fixed",
         frequency: null,
         pricePerHour: client.price_per_hour,
+        deepCleanPricePerHour: client.deep_clean_price_per_hour ?? undefined,
         status: "active",
         createdAt: new Date(),
         invoiceFrequency: "monthly",
@@ -491,6 +532,7 @@ class SupabaseService {
         phone: "",
         email: "",
         ratePerHour: professional.rate_per_hour,
+        deepCleanRatePerHour: professional.deep_clean_rate_per_hour ?? undefined,
         availability: { mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
         status: "active",
         createdAt: new Date(),
@@ -510,12 +552,14 @@ class SupabaseService {
         clients:client_id (
           id,
           name,
-          price_per_hour
+          price_per_hour,
+          deep_clean_price_per_hour
         ),
         professionals:professional_id (
           id,
           name,
-          rate_per_hour
+          rate_per_hour,
+          deep_clean_rate_per_hour
         )
       `)
       .eq("date", dateStr)
@@ -528,8 +572,8 @@ class SupabaseService {
     // Transform the data
     return (data as any[]).map((item) => {
       const dbJob = item as DbJob;
-      const client = item.clients as { id: string; name: string; price_per_hour: number };
-      const professional = item.professionals as { id: string; name: string; rate_per_hour: number };
+      const client = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
+      const professional = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
 
       const clientObj: Client = {
         id: client.id,
@@ -543,6 +587,7 @@ class SupabaseService {
         contractType: "fixed",
         frequency: null,
         pricePerHour: client.price_per_hour,
+        deepCleanPricePerHour: client.deep_clean_price_per_hour ?? undefined,
         status: "active",
         createdAt: new Date(),
         invoiceFrequency: "monthly",
@@ -555,6 +600,7 @@ class SupabaseService {
         phone: "",
         email: "",
         ratePerHour: professional.rate_per_hour,
+        deepCleanRatePerHour: professional.deep_clean_rate_per_hour ?? undefined,
         availability: { mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
         status: "active",
         createdAt: new Date(),
@@ -574,8 +620,9 @@ class SupabaseService {
     }
 
     const dbJob = jobToDbJob(job);
-    const totalPrice = job.durationHours * client.pricePerHour;
-    const cost = job.durationHours * professional.ratePerHour;
+    const serviceKind = job.serviceKind ?? "regular";
+    const totalPrice = job.durationHours * getEffectiveClientRate(client, serviceKind);
+    const cost = job.durationHours * getEffectiveProfessionalRate(professional, serviceKind);
 
     const { data, error } = await supabase
       .from("jobs")
@@ -589,12 +636,14 @@ class SupabaseService {
         clients:client_id (
           id,
           name,
-          price_per_hour
+          price_per_hour,
+          deep_clean_price_per_hour
         ),
         professionals:professional_id (
           id,
           name,
-          rate_per_hour
+          rate_per_hour,
+          deep_clean_rate_per_hour
         )
       `)
       .single();
@@ -605,8 +654,8 @@ class SupabaseService {
 
     const item = data as any;
     const dbJobResult = item as DbJob;
-    const clientData = item.clients as { id: string; name: string; price_per_hour: number };
-    const professionalData = item.professionals as { id: string; name: string; rate_per_hour: number };
+    const clientData = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
+    const professionalData = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
 
     const clientObj: Client = {
       id: clientData.id,
@@ -620,6 +669,7 @@ class SupabaseService {
       contractType: client.contractType,
       frequency: client.frequency,
       pricePerHour: clientData.price_per_hour,
+      deepCleanPricePerHour: clientData.deep_clean_price_per_hour ?? undefined,
       status: client.status,
       createdAt: client.createdAt,
       invoiceFrequency: client.invoiceFrequency,
@@ -635,6 +685,7 @@ class SupabaseService {
       phone: professional.phone,
       email: professional.email,
       ratePerHour: professionalData.rate_per_hour,
+      deepCleanRatePerHour: professionalData.deep_clean_rate_per_hour ?? undefined,
       availability: professional.availability,
       status: professional.status,
       createdAt: professional.createdAt,
@@ -655,10 +706,15 @@ class SupabaseService {
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes || null;
     if (updates.recurringGroupId !== undefined) dbUpdates.recurring_group_id = updates.recurringGroupId || null;
+    if (updates.serviceKind !== undefined) dbUpdates.service_kind = updates.serviceKind;
 
-    // Recalculate prices if duration, client, or professional changed
-    if (updates.durationHours !== undefined || updates.clientId !== undefined || updates.professionalId !== undefined) {
-      // Fetch current job to get all needed data
+    // Recalculate prices if duration, client, professional, or service kind changed
+    const recalc =
+      updates.durationHours !== undefined ||
+      updates.clientId !== undefined ||
+      updates.professionalId !== undefined ||
+      updates.serviceKind !== undefined;
+    if (recalc) {
       const currentJob = await this.getJobs();
       const jobToUpdate = currentJob.find((j) => j.id === id);
 
@@ -666,13 +722,14 @@ class SupabaseService {
         const clientId = updates.clientId ?? jobToUpdate.clientId;
         const professionalId = updates.professionalId ?? jobToUpdate.professionalId;
         const durationHours = updates.durationHours ?? jobToUpdate.durationHours;
+        const serviceKind = updates.serviceKind ?? jobToUpdate.serviceKind ?? "regular";
 
         const client = await this.getClient(clientId);
         const professional = await this.getProfessional(professionalId);
 
         if (client && professional) {
-          dbUpdates.total_price = durationHours * client.pricePerHour;
-          dbUpdates.cost = durationHours * professional.ratePerHour;
+          dbUpdates.total_price = durationHours * getEffectiveClientRate(client, serviceKind);
+          dbUpdates.cost = durationHours * getEffectiveProfessionalRate(professional, serviceKind);
         }
       }
     }
@@ -686,12 +743,14 @@ class SupabaseService {
         clients:client_id (
           id,
           name,
-          price_per_hour
+          price_per_hour,
+          deep_clean_price_per_hour
         ),
         professionals:professional_id (
           id,
           name,
-          rate_per_hour
+          rate_per_hour,
+          deep_clean_rate_per_hour
         )
       `)
       .single();

@@ -110,10 +110,30 @@ Features (Invoice)
 
 ---
 
+## Payment Management (Post–Invoice)
+
+See **`docs/PAYMENT_STRATEGY.md`** for full strategy, how companies handle payroll, and Revolut integration plan.
+
+### Phase 3a: Bank Account on Professional (Cadastro do Funcionário)
+- Add bank account fields to **professional** registration (account holder name, sort code, account number; optional IBAN/BIC).
+- DB: new columns on `professionals` (or `professional_bank_details` table).
+- Schema: extend `professionalSchema` and types.
+- UI: "Bank details" section in ProfessionalDialog.
+
+### Phase 3b: Payment List (Lista de Pagamentos)
+- **Data:** Tables `payment_runs` and `payment_run_items` (period, professional, amount, status pending/paid).
+- **Logic:** Amounts from completed jobs in the selected period; "Create payment run" generates the list.
+- **UI:** Payment list under Finance (or dedicated Payments page): employees to pay, amount, easy access to bank data, **tick/button to mark as paid** (simulated; no Revolut yet).
+- **Later:** Revolut API integration so "Mark as paid" triggers real payout.
+
+---
+
 **Total Estimated Time:**
 - Supabase: 8-12 hours
 - Invoice: 7-12 hours
 - **Total: 15-24 hours** (if done in correct order)
 - **Total: 20-30 hours** (if Invoice is done first and then migrated)
+- Payment (bank account + payment list, simulated): ~6-10 hours (see PAYMENT_STRATEGY.md)
+- Revolut integration (later): estimate separately
 
 **Time savings: 5-6 hours** by doing it in the correct order! 🎉
