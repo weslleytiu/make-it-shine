@@ -66,6 +66,9 @@ export default function Invoices() {
   }, [invoices, clientFilter, statusFilter]);
 
   const selectedClientName = detailInvoice ? clientMap.get(detailInvoice.clientId) ?? "—" : "";
+  const selectedClient = detailInvoice
+    ? clients.find((c) => c.id === detailInvoice.clientId) ?? null
+    : null;
 
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this invoice? This cannot be undone.")) {
@@ -228,6 +231,7 @@ export default function Invoices() {
       <InvoiceDetailSheet
         invoice={detailInvoice}
         clientName={selectedClientName}
+        client={selectedClient ? { address: selectedClient.address, city: selectedClient.city, postcode: selectedClient.postcode } : null}
         open={detailOpen}
         onOpenChange={setDetailOpen}
       />

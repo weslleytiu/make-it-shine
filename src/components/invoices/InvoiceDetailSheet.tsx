@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { pdf } from "@react-pdf/renderer";
 import {
   useInvoiceJobs,
   useUpdateInvoice,
@@ -15,24 +17,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, isPast, startOfDay, differenceInDays } from "date-fns";
 import type { Invoice } from "@/lib/schemas";
+import type { Client } from "@/lib/schemas";
 import { CheckCircle, XCircle, Plus, Trash2, Mail } from "lucide-react";
+import { InvoicePdfDocument } from "./InvoicePdfDocument";
+
+/** Client info used for PDF "Bill To" (name comes from clientName; address from here). */
+export type InvoiceDetailClient = Pick<Client, "address" | "city" | "postcode"> | null;
 
 interface InvoiceDetailSheetProps {
   invoice: Invoice | null;
   clientName: string;
+  /** Optional client address for PDF. If provided, PDF "Bill To" will include address. */
+  client?: InvoiceDetailClient;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: InvoiceDetailSheetProps) {
+export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenChange }: InvoiceDetailSheetProps) {
   const { data: jobs = [] } = useInvoiceJobs(invoice?.id ?? "");
   const uninvoicedQuery = useUninvoicedCompletedJobs(invoice?.clientId ?? "");
   const updateMutation = useUpdateInvoice();
   const addJobMutation = useAddJobToInvoice();
   const removeJobMutation = useRemoveJobFromInvoice();
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   if (!invoice) return null;
 
@@ -46,6 +55,34 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
 
   // When backend has sentAt: show "Sent on {date}" instead of Send button
   const wasSent = false; // TODO: invoice.sentAt != null when we persist send date
+
+  const clientAddress = client
+    ? `${client.address}, ${client.city} ${client.postcode}`
+    : undefined;
+
+  const handleSendToClient = async () => {
+    if (!invoice || jobs.length === 0) return;
+    setGeneratingPdf(true);
+    try {
+      const doc = (
+        <InvoicePdfDocument
+          invoice={invoice}
+          clientName={clientName}
+          clientAddress={clientAddress}
+          jobs={jobs.map((j) => ({ durationHours: j.durationHours, totalPrice: j.totalPrice ?? 0 }))}
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${invoice.invoiceNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
 
   const handleMarkPaid = () => {
     updateMutation.mutate(
@@ -189,20 +226,14 @@ export function InvoiceDetailSheet({ invoice, clientName, open, onOpenChange }: 
                     {/* TODO: show sent date when invoice.sentAt exists, e.g. "Sent on {format(invoice.sentAt, 'dd/MM/yyyy')}" */}
                   </span>
                 ) : (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <Button size="sm" disabled aria-disabled>
-                            <Mail className="mr-2 h-4 w-4" /> Send to client
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Coming soon</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Button
+                    size="sm"
+                    onClick={handleSendToClient}
+                    disabled={generatingPdf || jobs.length === 0}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    {generatingPdf ? "Generating PDF..." : "Send to client"}
+                  </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={handleCancel} disabled={updateMutation.isPending}>
                   <XCircle className="mr-2 h-4 w-4" /> Cancel invoice
