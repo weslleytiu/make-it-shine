@@ -4,6 +4,7 @@
 
 import { supabaseService } from "./supabaseService";
 import type { Client, Professional, Job, Invoice } from "@/lib/schemas";
+import type { Quote } from "@/types/landing";
 
 class ApiService {
   // --- Clients ---
@@ -117,6 +118,21 @@ class ApiService {
     options?: { dueDays?: number; notes?: string }
   ): Promise<Invoice> {
     return await supabaseService.generateInvoiceForPeriod(clientId, periodStart, periodEnd, options);
+  }
+
+  // --- Quotes ---
+  async getQuotes(): Promise<Quote[]> {
+    return await supabaseService.getQuotes();
+  }
+
+  async createQuote(
+    payload: Omit<Quote, "id" | "createdAt" | "updatedAt">
+  ): Promise<Quote> {
+    return await supabaseService.createQuote(payload);
+  }
+
+  async updateQuote(id: string, updates: Partial<Quote>): Promise<Quote | null> {
+    return await supabaseService.updateQuote(id, updates);
   }
 }
 

@@ -29,7 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { contactFormSchema, type ContactFormValues } from "@/lib/landing-validations";
-import type { ContactSubmitPayload, ServiceTypeOption } from "@/types/landing";
+import type { ContactSubmitPayload, Quote, ServiceTypeOption } from "@/types/landing";
+import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 
 const SERVICE_OPTIONS = [
@@ -71,6 +72,23 @@ function buildPayload(values: ContactFormValues): ContactSubmitPayload {
   };
 }
 
+/** Build Quote row for Supabase (dashboard approval + assign cleaner). */
+function buildQuotePayload(values: ContactFormValues): Omit<Quote, "id" | "createdAt" | "updatedAt"> {
+  const payload = buildPayload(values);
+  return {
+    fullName: payload.fullName,
+    email: payload.email,
+    phone: payload.phone,
+    serviceType: payload.serviceType,
+    postcode: payload.postcode,
+    preferredContact: payload.preferredContact,
+    message: payload.message,
+    status: "pending",
+    professionalId: null,
+    source: payload.source,
+  };
+}
+
 interface ContactFormProps {
   /** Trigger element (e.g. "Get Your Free Quote" button) */
   trigger: React.ReactNode;
@@ -104,20 +122,16 @@ export function ContactForm({ trigger, className, trackOpen }: ContactFormProps)
     setErrorMessage("");
     setSuccessMessage("");
 
-    const payload = buildPayload(values);
-
     try {
-      // Simulate submit — replace with real API/email/webhook
+      const quotePayload = buildQuotePayload(values);
+      await api.createQuote(quotePayload);
+
       if (typeof window !== "undefined" && window.gtag) {
         window.gtag("event", "form_submit", {
           event_category: "contact",
           event_label: "landing-page",
         });
       }
-      console.log("Contact form payload (ready for backend):", payload);
-
-      // Simulate network delay
-      await new Promise((r) => setTimeout(r, 800));
 
       setStatus("success");
       setSuccessMessage(

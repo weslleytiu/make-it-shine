@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Client, Professional, Job, Invoice, InvoiceJob } from "@/lib/schemas";
+import type { Quote } from "@/types/landing";
 import { dateToLocalDateString, localDateStringToDate } from "@/lib/utils";
 
 // Database types (snake_case from Supabase)
@@ -87,7 +88,58 @@ interface DbJob {
   updated_at: string;
 }
 
+interface DbQuote {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  service_type: string;
+  postcode: string;
+  preferred_contact: "Phone" | "WhatsApp" | "Email";
+  message: string | null;
+  status: "pending" | "approved" | "rejected" | "converted";
+  professional_id: string | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Helper functions to convert between DB and app types
+function dbQuoteToQuote(db: DbQuote): Quote {
+  return {
+    id: db.id,
+    fullName: db.full_name,
+    email: db.email,
+    phone: db.phone,
+    serviceType: db.service_type,
+    postcode: db.postcode,
+    preferredContact: db.preferred_contact,
+    message: db.message ?? null,
+    status: db.status,
+    professionalId: db.professional_id ?? null,
+    source: db.source,
+    createdAt: new Date(db.created_at),
+    updatedAt: new Date(db.updated_at),
+  };
+}
+
+function quoteToDbQuote(
+  q: Omit<Quote, "id" | "createdAt" | "updatedAt">
+): Omit<DbQuote, "id" | "created_at" | "updated_at"> {
+  return {
+    full_name: q.fullName,
+    email: q.email,
+    phone: q.phone,
+    service_type: q.serviceType,
+    postcode: q.postcode,
+    preferred_contact: q.preferredContact,
+    message: q.message ?? null,
+    status: q.status,
+    professional_id: q.professionalId ?? null,
+    source: q.source,
+  };
+}
+
 function dbClientToClient(db: DbClient): Client {
   return {
     id: db.id,
@@ -842,6 +894,67 @@ class SupabaseService {
     }
     const updated = await this.getInvoice(invoice.id);
     return updated ?? invoice;
+  }
+
+  // --- Quotes (landing page requests) ---
+  async getQuotes(): Promise<Quote[]> {
+    const { data, error } = await supabase
+      .from("quotes")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch quotes: ${error.message}`);
+    }
+
+    return (data as DbQuote[]).map(dbQuoteToQuote);
+  }
+
+  async createQuote(
+    payload: Omit<Quote, "id" | "createdAt" | "updatedAt">
+  ): Promise<Quote> {
+    const dbRow = quoteToDbQuote(payload);
+
+    const { data, error } = await supabase
+      .from("quotes")
+      .insert(dbRow)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create quote: ${error.message}`);
+    }
+
+    return dbQuoteToQuote(data as DbQuote);
+  }
+
+  async updateQuote(id: string, updates: Partial<Quote>): Promise<Quote | null> {
+    const dbUpdates: Partial<DbQuote> = {};
+    if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.serviceType !== undefined) dbUpdates.service_type = updates.serviceType;
+    if (updates.postcode !== undefined) dbUpdates.postcode = updates.postcode;
+    if (updates.preferredContact !== undefined)
+      dbUpdates.preferred_contact = updates.preferredContact;
+    if (updates.message !== undefined) dbUpdates.message = updates.message ?? null;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.professionalId !== undefined)
+      dbUpdates.professional_id = updates.professionalId ?? null;
+
+    const { data, error } = await supabase
+      .from("quotes")
+      .update(dbUpdates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null;
+      throw new Error(`Failed to update quote: ${error.message}`);
+    }
+
+    return data ? dbQuoteToQuote(data as DbQuote) : null;
   }
 }
 

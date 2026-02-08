@@ -3,16 +3,38 @@ import { Link } from "react-router-dom";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
 import { useJobs } from "@/hooks/useJobs";
+import { useQuotes, useUpdateQuote } from "@/hooks/useQuotes";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, UserCog, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { Users, UserCog, Calendar, CheckCircle2, Clock, FileText } from "lucide-react";
 import { startOfWeek, endOfWeek, isWithinInterval, format, isAfter } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import type { Quote } from "@/types/landing";
 
 export default function Dashboard() {
     const { data: clients } = useClients();
     const { data: pros } = useProfessionals();
     const { data: jobs } = useJobs();
+    const { data: quotes } = useQuotes();
+    const updateQuote = useUpdateQuote();
+
+    const pendingQuotes = useMemo(
+        () =>
+            quotes?.filter(
+                (q) =>
+                    q.status === "pending" ||
+                    (q.status === "approved" && !q.professionalId)
+            ) ?? [],
+        [quotes]
+    );
 
     const stats = useMemo(() => {
         const activeClients = clients?.filter(c => c.status === "active").length || 0;
@@ -32,9 +54,10 @@ export default function Dashboard() {
             activeClients,
             activePros,
             jobsThisWeek,
-            upcomingJobs
+            upcomingJobs,
+            pendingQuotesCount: quotes?.filter((q) => q.status === "pending").length ?? 0,
         };
-    }, [clients, pros, jobs]);
+    }, [clients, pros, jobs, pendingQuotes.length]);
 
     const getClientName = (id: string) => clients?.find(c => c.id === id)?.name || "Unknown";
     const getProName = (id: string) => pros?.find(p => p.id === id)?.name || "Unassigned";
@@ -82,9 +105,18 @@ export default function Dashboard() {
                         <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        {/* Placeholder for completion rate or another metric */}
                         <div className="text-2xl font-bold">100%</div>
                         <p className="text-xs text-muted-foreground">All jobs handled</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Quotes to approve</CardTitle>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{stats.pendingQuotesCount}</div>
+                        <p className="text-xs text-muted-foreground">From landing page</p>
                     </CardContent>
                 </Card>
             </div>
@@ -152,10 +184,6 @@ export default function Dashboard() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="grid gap-2">
-                        {/* 
-                            Navigation buttons could go here, but sidebar handles it.
-                            Maybe just some text or instructions for now.
-                        */}
                         <div className="text-sm text-muted-foreground">
                             Use the sidebar to manage specific entities.
                             <ul className="list-disc pl-4 mt-2 space-y-1">
@@ -166,6 +194,120 @@ export default function Dashboard() {
                     </CardContent>
                 </Card>
             </div>
+
+            {pendingQuotes.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Quotes to approve</CardTitle>
+                        <CardDescription>
+                            Approve or reject and assign a cleaner. From landing page.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Contact</TableHead>
+                                    <TableHead>Service</TableHead>
+                                    <TableHead>Postcode</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Cleaner</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {pendingQuotes.map((quote) => (
+                                    <QuoteRow
+                                        key={quote.id}
+                                        quote={quote}
+                                        professionals={pros ?? []}
+                                        onUpdate={(updates) =>
+                                            updateQuote.mutate({ id: quote.id, data: updates })
+                                        }
+                                        isUpdating={updateQuote.isPending}
+                                    />
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
         </div>
+    );
+}
+
+function QuoteRow({
+    quote,
+    professionals,
+    onUpdate,
+    isUpdating,
+}: {
+    quote: Quote;
+    professionals: { id: string; name: string }[];
+    onUpdate: (updates: Partial<Quote>) => void;
+    isUpdating: boolean;
+}) {
+    return (
+        <TableRow>
+            <TableCell>
+                <div className="font-medium">{quote.fullName}</div>
+                <div className="text-xs text-muted-foreground">{quote.email} · {quote.phone}</div>
+            </TableCell>
+            <TableCell className="capitalize">{quote.serviceType.replace(/_/g, " ")}</TableCell>
+            <TableCell>{quote.postcode}</TableCell>
+            <TableCell>
+                <Badge
+                    variant={
+                        quote.status === "approved"
+                            ? "default"
+                            : quote.status === "rejected"
+                              ? "destructive"
+                              : "secondary"
+                    }
+                >
+                    {quote.status}
+                </Badge>
+            </TableCell>
+            <TableCell>
+                <Select
+                    value={quote.professionalId ?? ""}
+                    onValueChange={(id) => onUpdate({ professionalId: id || null })}
+                    disabled={isUpdating}
+                >
+                    <SelectTrigger className="h-8 w-[180px]">
+                        <SelectValue placeholder="Assign cleaner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {professionals.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </TableCell>
+            <TableCell className="text-right">
+                {quote.status === "pending" && (
+                    <div className="flex justify-end gap-1">
+                        <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => onUpdate({ status: "approved" })}
+                            disabled={isUpdating}
+                        >
+                            Approve
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onUpdate({ status: "rejected" })}
+                            disabled={isUpdating}
+                        >
+                            Reject
+                        </Button>
+                    </div>
+                )}
+            </TableCell>
+        </TableRow>
     );
 }
