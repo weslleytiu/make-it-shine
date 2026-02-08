@@ -8,6 +8,7 @@ import ProfessionalDetail from "@/pages/ProfessionalDetail";
 import Jobs from "@/pages/Jobs";
 import Finance from "@/pages/Finance";
 import Invoices from "@/pages/Invoices";
+import PaymentRuns from "@/pages/PaymentRuns";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="jobs" element={<Jobs />} />
           <Route path="invoices" element={<Invoices />} />
           <Route path="finance" element={<Finance />} />
+          <Route path="payment-runs" element={<PaymentRuns />} />
         </Route>
         <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

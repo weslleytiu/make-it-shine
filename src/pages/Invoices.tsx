@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
-import { useInvoices, useDeleteInvoice } from "@/hooks/useInvoices";
+import { useInvoices, useDeleteInvoice, useUpdateInvoice } from "@/hooks/useInvoices";
 import { useClients } from "@/hooks/useClients";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Trash2 } from "lucide-react";
+import { Plus, FileText, Trash2, CheckCircle } from "lucide-react";
 import { format, isPast, startOfDay } from "date-fns";
 import { CreateInvoiceDialog } from "@/components/invoices/CreateInvoiceDialog";
 import { InvoiceDetailSheet } from "@/components/invoices/InvoiceDetailSheet";
@@ -29,6 +29,7 @@ export default function Invoices() {
   const { data: invoices = [], isLoading } = useInvoices();
   const { data: clients = [] } = useClients();
   const deleteMutation = useDeleteInvoice();
+  const updateMutation = useUpdateInvoice();
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -74,6 +75,10 @@ export default function Invoices() {
     if (window.confirm("Delete this invoice? This cannot be undone.")) {
       deleteMutation.mutate(id);
     }
+  };
+
+  const handleMarkPaid = (id: string) => {
+    updateMutation.mutate({ id, data: { status: "paid" } });
   };
 
   const openDetail = (inv: Invoice) => {
@@ -139,7 +144,9 @@ export default function Invoices() {
               displayStatus={getDisplayStatus(inv)}
               onOpen={openDetail}
               onDelete={handleDelete}
+              onMarkPaid={handleMarkPaid}
               isDeleting={deleteMutation.isPending}
+              isMarkingPaid={updateMutation.isPending}
             />
           ))
         )}
@@ -163,7 +170,7 @@ export default function Invoices() {
                 <TableHead>Due date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Total</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                <TableHead className="w-[140px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -177,6 +184,7 @@ export default function Invoices() {
                 filteredAndSortedInvoices.map((inv) => {
                   const displayStatus = getDisplayStatus(inv);
                   const canDelete = inv.status === "draft";
+                  const canMarkPaid = displayStatus === "pending" || displayStatus === "overdue";
                   return (
                     <TableRow
                       key={inv.id}
@@ -194,18 +202,32 @@ export default function Invoices() {
                           variant={
                             displayStatus === "paid"
                               ? "default"
-                              : displayStatus === "pending" || displayStatus === "overdue"
-                                ? "secondary"
-                                : displayStatus === "cancelled"
-                                  ? "destructive"
-                                  : "outline"
+                              : displayStatus === "overdue"
+                                ? "destructive"
+                                : displayStatus === "pending"
+                                  ? "secondary"
+                                  : displayStatus === "cancelled"
+                                    ? "destructive"
+                                    : "outline"
                           }
                         >
                           {displayStatus}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">£{inv.total.toFixed(2)}</TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="space-x-1">
+                        {canMarkPaid && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => handleMarkPaid(inv.id)}
+                            disabled={updateMutation.isPending}
+                          >
+                            <CheckCircle className="mr-1.5 h-4 w-4" />
+                            Mark as paid
+                          </Button>
+                        )}
                         {canDelete && (
                           <Button
                             variant="ghost"

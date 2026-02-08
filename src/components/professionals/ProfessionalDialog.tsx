@@ -52,6 +52,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
             ratePerHour: 12,
             deepCleanRatePerHour: undefined,
             status: "active",
+            accountHolderName: "",
+            sortCode: "",
+            accountNumber: "",
             availability: {
                 mon: true,
                 tue: true,
@@ -74,6 +77,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                     ratePerHour: professional.ratePerHour,
                     deepCleanRatePerHour: professional.deepCleanRatePerHour,
                     status: professional.status,
+                    accountHolderName: professional.accountHolderName ?? "",
+                    sortCode: professional.sortCode ?? "",
+                    accountNumber: professional.accountNumber ?? "",
                     availability: {
                         ...DEFAULT_AVAILABILITY,
                         ...(professional.availability || {}),
@@ -87,6 +93,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                     ratePerHour: 12,
                     deepCleanRatePerHour: undefined,
                     status: "active",
+                    accountHolderName: "",
+                    sortCode: "",
+                    accountNumber: "",
                     availability: DEFAULT_AVAILABILITY,
                 });
             }
@@ -226,6 +235,58 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                                     </FormItem>
                                 )}
                             />
+                        </div>
+
+                        <div className="space-y-3">
+                            <Label className="text-base">Bank details (for payment runs)</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Account holder name, sort code and account number (UK) are used when paying this professional.
+                            </p>
+                            <div className="grid gap-4 border p-4 rounded-md">
+                                <FormField
+                                    control={form.control as any}
+                                    name="accountHolderName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Account holder name</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Name as on bank account" {...field} value={field.value ?? ""} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="sortCode"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Sort code</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="12-34-56" {...field} value={field.value ?? ""} />
+                                                </FormControl>
+                                                <FormDescription>6 digits, e.g. 12-34-56</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="accountNumber"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Account number</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="12345678" {...field} value={field.value ?? ""} />
+                                                </FormControl>
+                                                <FormDescription>8 digits</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="space-y-3">

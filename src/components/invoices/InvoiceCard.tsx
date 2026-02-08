@@ -1,4 +1,4 @@
-import { FileText, Trash2, User, Calendar, CalendarClock } from "lucide-react";
+import { FileText, Trash2, User, Calendar, CalendarClock, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,20 +11,23 @@ interface InvoiceCardProps {
   displayStatus: "draft" | "pending" | "paid" | "overdue" | "cancelled";
   onOpen: (invoice: Invoice) => void;
   onDelete: (id: string) => void;
+  onMarkPaid?: (id: string) => void;
   isDeleting?: boolean;
+  isMarkingPaid?: boolean;
 }
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   paid: "default",
   pending: "secondary",
-  overdue: "secondary",
+  overdue: "destructive",
   cancelled: "destructive",
   draft: "outline",
 };
 
-export function InvoiceCard({ invoice, clientName, displayStatus, onOpen, onDelete, isDeleting }: InvoiceCardProps) {
+export function InvoiceCard({ invoice, clientName, displayStatus, onOpen, onDelete, onMarkPaid, isDeleting, isMarkingPaid }: InvoiceCardProps) {
   const variant = statusVariant[displayStatus] ?? "outline";
   const canDelete = invoice.status === "draft";
+  const canMarkPaid = (displayStatus === "pending" || displayStatus === "overdue") && onMarkPaid;
 
   return (
     <Card
@@ -75,6 +78,21 @@ export function InvoiceCard({ invoice, clientName, displayStatus, onOpen, onDele
           </Badge>
           <span className="font-semibold text-foreground">£{invoice.total.toFixed(2)}</span>
         </div>
+        {canMarkPaid && (
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkPaid?.(invoice.id);
+            }}
+            disabled={isMarkingPaid}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Mark as paid
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

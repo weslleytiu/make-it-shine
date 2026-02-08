@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Users, UserCog, Calendar, FileText, PoundSterling, Sparkles } from "lucide-react";
+import { LayoutDashboard, Users, UserCog, Calendar, FileText, PoundSterling, Sparkles, Landmark } from "lucide-react";
 
 export const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -9,6 +9,7 @@ export const navItems = [
     { href: "/dashboard/jobs", label: "Jobs", icon: Calendar },
     { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
     { href: "/dashboard/finance", label: "Finance", icon: PoundSterling },
+    { href: "/dashboard/payment-runs", label: "Payment runs", icon: Landmark },
 ];
 
 export function Sidebar() {

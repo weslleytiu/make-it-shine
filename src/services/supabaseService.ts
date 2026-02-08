@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Client, Professional, Job, Invoice, InvoiceJob } from "@/lib/schemas";
+import type { Client, Professional, Job, Invoice, InvoiceJob, PaymentRun, PaymentRunItem } from "@/lib/schemas";
 import type { Quote } from "@/types/landing";
 import { dateToLocalDateString, localDateStringToDate } from "@/lib/utils";
 
@@ -79,8 +79,29 @@ interface DbProfessional {
     sun: boolean;
   };
   status: "active" | "vacation" | "inactive";
+  account_holder_name?: string | null;
+  sort_code?: string | null;
+  account_number?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface DbPaymentRun {
+  id: string;
+  period_start: string;
+  period_end: string;
+  created_at: string;
+}
+
+interface DbPaymentRunItem {
+  id: string;
+  payment_run_id: string;
+  professional_id: string;
+  amount: number;
+  status: "pending" | "paid";
+  paid_at: string | null;
+  external_reference: string | null;
+  created_at: string;
 }
 
 interface DbJob {
@@ -211,6 +232,9 @@ function dbProfessionalToProfessional(db: DbProfessional): Professional {
     deepCleanRatePerHour: db.deep_clean_rate_per_hour ?? undefined,
     availability: db.availability,
     status: db.status,
+    accountHolderName: db.account_holder_name ?? undefined,
+    sortCode: db.sort_code ?? undefined,
+    accountNumber: db.account_number ?? undefined,
     createdAt: new Date(db.created_at),
   };
 }
@@ -226,6 +250,31 @@ function professionalToDbProfessional(
     deep_clean_rate_per_hour: pro.deepCleanRatePerHour ?? null,
     availability: pro.availability,
     status: pro.status,
+    account_holder_name: pro.accountHolderName || null,
+    sort_code: pro.sortCode || null,
+    account_number: pro.accountNumber || null,
+  };
+}
+
+function dbPaymentRunToPaymentRun(db: DbPaymentRun): PaymentRun {
+  return {
+    id: db.id,
+    periodStart: localDateStringToDate(db.period_start),
+    periodEnd: localDateStringToDate(db.period_end),
+    createdAt: new Date(db.created_at),
+  };
+}
+
+function dbPaymentRunItemToPaymentRunItem(db: DbPaymentRunItem): PaymentRunItem {
+  return {
+    id: db.id,
+    paymentRunId: db.payment_run_id,
+    professionalId: db.professional_id,
+    amount: Number(db.amount),
+    status: db.status,
+    paidAt: db.paid_at ? new Date(db.paid_at) : null,
+    externalReference: db.external_reference ?? undefined,
+    createdAt: new Date(db.created_at),
   };
 }
 
@@ -452,6 +501,9 @@ class SupabaseService {
     if (updates.deepCleanRatePerHour !== undefined) dbUpdates.deep_clean_rate_per_hour = updates.deepCleanRatePerHour ?? null;
     if (updates.availability !== undefined) dbUpdates.availability = updates.availability;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.accountHolderName !== undefined) dbUpdates.account_holder_name = updates.accountHolderName || null;
+    if (updates.sortCode !== undefined) dbUpdates.sort_code = updates.sortCode || null;
+    if (updates.accountNumber !== undefined) dbUpdates.account_number = updates.accountNumber || null;
 
     const { data, error } = await supabase.from("professionals").update(dbUpdates).eq("id", id).select().single();
 
@@ -913,6 +965,90 @@ class SupabaseService {
     const match = last.match(/INV-\d{4}-(\d+)/);
     const num = match ? parseInt(match[1], 10) + 1 : 1;
     return `INV-${year}-${String(num).padStart(3, "0")}`;
+  }
+
+  // --- Payment Runs ---
+  async getPaymentRuns(): Promise<PaymentRun[]> {
+    const { data, error } = await supabase
+      .from("payment_runs")
+      .select("*")
+      .order("period_start", { ascending: false });
+    if (error) throw new Error(`Failed to fetch payment runs: ${error.message}`);
+    return (data as DbPaymentRun[]).map(dbPaymentRunToPaymentRun);
+  }
+
+  async getPaymentRun(id: string): Promise<PaymentRun | undefined> {
+    const { data, error } = await supabase.from("payment_runs").select("*").eq("id", id).single();
+    if (error) {
+      if (error.code === "PGRST116") return undefined;
+      throw new Error(`Failed to fetch payment run: ${error.message}`);
+    }
+    return data ? dbPaymentRunToPaymentRun(data as DbPaymentRun) : undefined;
+  }
+
+  /** Create a payment run for the period: sums completed job costs per professional and creates run + items. */
+  async createPaymentRun(periodStart: Date, periodEnd: Date): Promise<PaymentRun> {
+    const startStr = dateToLocalDateString(periodStart);
+    const endStr = dateToLocalDateString(periodEnd);
+    const allJobs = await this.getJobs();
+    const startT = new Date(periodStart).setHours(0, 0, 0, 0);
+    const endT = new Date(periodEnd).setHours(23, 59, 59, 999);
+    const completedInPeriod = allJobs.filter((j) => {
+      if (j.status !== "completed") return false;
+      const t = j.date.getTime();
+      return t >= startT && t <= endT;
+    });
+    const amountByProfessional = new Map<string, number>();
+    for (const job of completedInPeriod) {
+      const pid = job.professionalId;
+      const cost = job.cost ?? 0;
+      amountByProfessional.set(pid, (amountByProfessional.get(pid) ?? 0) + cost);
+    }
+    const { data: runData, error: runError } = await supabase
+      .from("payment_runs")
+      .insert({ period_start: startStr, period_end: endStr })
+      .select()
+      .single();
+    if (runError) throw new Error(`Failed to create payment run: ${runError.message}`);
+    const run = dbPaymentRunToPaymentRun(runData as DbPaymentRun);
+    const items = Array.from(amountByProfessional.entries())
+      .filter(([, amount]) => amount > 0)
+      .map(([professionalId, amount]) => ({
+        payment_run_id: run.id,
+        professional_id: professionalId,
+        amount,
+        status: "pending",
+      }));
+    if (items.length > 0) {
+      const { error: itemsError } = await supabase.from("payment_run_items").insert(items);
+      if (itemsError) throw new Error(`Failed to create payment run items: ${itemsError.message}`);
+    }
+    return run;
+  }
+
+  async getPaymentRunItems(paymentRunId: string): Promise<PaymentRunItem[]> {
+    const { data, error } = await supabase
+      .from("payment_run_items")
+      .select("*")
+      .eq("payment_run_id", paymentRunId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`Failed to fetch payment run items: ${error.message}`);
+    return (data as DbPaymentRunItem[]).map(dbPaymentRunItemToPaymentRunItem);
+  }
+
+  /** Mark a payment run item as paid (simulated; future: Revolut API). */
+  async markPaymentRunItemPaid(itemId: string): Promise<PaymentRunItem | null> {
+    const { data, error } = await supabase
+      .from("payment_run_items")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", itemId)
+      .select()
+      .single();
+    if (error) {
+      if (error.code === "PGRST116") return null;
+      throw new Error(`Failed to mark item as paid: ${error.message}`);
+    }
+    return data ? dbPaymentRunItemToPaymentRunItem(data as DbPaymentRunItem) : null;
   }
 
   async generateInvoiceForPeriod(

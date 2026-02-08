@@ -54,6 +54,10 @@ export const professionalAvailabilitySchema = z.object({
     sun: z.boolean().default(false),
 });
 
+// UK bank: sort code 6 digits (12-34-56 or 123456), account number 8 digits
+const sortCodeRegex = /^\d{2}-?\d{2}-?\d{2}$|^\d{6}$/;
+const accountNumberRegex = /^\d{8}$/;
+
 export const professionalSchema = z.object({
     id: z.string().uuid().optional(),
     name: z.string().min(2, "Name is required"),
@@ -63,6 +67,10 @@ export const professionalSchema = z.object({
     deepCleanRatePerHour: z.coerce.number().min(0.01).nullable().optional(),
     availability: professionalAvailabilitySchema,
     status: ProfessionalStatusEnum.default("active"),
+    // Bank details (UK) for payment runs
+    accountHolderName: z.string().optional(),
+    sortCode: z.union([z.string().regex(sortCodeRegex), z.literal("")]).optional(),
+    accountNumber: z.union([z.string().regex(accountNumberRegex), z.literal("")]).optional(),
     createdAt: z.date().optional(),
 });
 
@@ -110,6 +118,26 @@ export const invoiceJobSchema = z.object({
     createdAt: z.date().optional(),
 });
 
+export const PaymentRunItemStatusEnum = z.enum(["pending", "paid"]);
+
+export const paymentRunSchema = z.object({
+    id: z.string().uuid().optional(),
+    periodStart: z.date(),
+    periodEnd: z.date(),
+    createdAt: z.date().optional(),
+});
+
+export const paymentRunItemSchema = z.object({
+    id: z.string().uuid().optional(),
+    paymentRunId: z.string().uuid(),
+    professionalId: z.string().uuid(),
+    amount: z.number().min(0),
+    status: PaymentRunItemStatusEnum.default("pending"),
+    paidAt: z.date().nullable().optional(),
+    externalReference: z.string().optional().nullable(),
+    createdAt: z.date().optional(),
+});
+
 // --- Types ---
 export type Client = z.infer<typeof clientSchema> & { id: string; createdAt: Date };
 export type Professional = z.infer<typeof professionalSchema> & { id: string; createdAt: Date };
@@ -117,3 +145,5 @@ export type Job = z.infer<typeof jobSchema> & { id: string; createdAt: Date; tot
 export type Invoice = z.infer<typeof invoiceSchema> & { id: string; createdAt: Date; updatedAt: Date };
 export type InvoiceJob = z.infer<typeof invoiceJobSchema> & { id: string; createdAt: Date };
 export type ProfessionalAvailability = z.infer<typeof professionalAvailabilitySchema>;
+export type PaymentRun = z.infer<typeof paymentRunSchema> & { id: string; createdAt: Date };
+export type PaymentRunItem = z.infer<typeof paymentRunItemSchema> & { id: string; createdAt: Date };

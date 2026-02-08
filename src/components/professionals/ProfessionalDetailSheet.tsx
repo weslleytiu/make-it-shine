@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Mail, Phone, FileEdit, Trash2, Briefcase } from "lucide-react";
+import { Mail, Phone, FileEdit, Trash2, Briefcase, Landmark } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useJobs } from "@/hooks/useJobs";
 import { useClients } from "@/hooks/useClients";
@@ -114,6 +114,22 @@ export function ProfessionalDetailSheet({
               £{professional.ratePerHour}/h
             </p>
           </div>
+
+          {(professional.accountHolderName || professional.sortCode || professional.accountNumber) && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Landmark className="h-3.5 w-3.5" /> Bank details
+              </p>
+              <div className="text-sm text-muted-foreground space-y-0.5">
+                {professional.accountHolderName && <p>{professional.accountHolderName}</p>}
+                {(professional.sortCode || professional.accountNumber) && (
+                  <p>
+                    {[professional.sortCode, professional.accountNumber].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">

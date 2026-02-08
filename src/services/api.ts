@@ -3,7 +3,7 @@
 // to ensure compatibility with existing hooks and components
 
 import { supabaseService } from "./supabaseService";
-import type { Client, Professional, Job, Invoice } from "@/lib/schemas";
+import type { Client, Professional, Job, Invoice, PaymentRun, PaymentRunItem } from "@/lib/schemas";
 import type { Quote } from "@/types/landing";
 
 class ApiService {
@@ -118,6 +118,27 @@ class ApiService {
     options?: { dueDays?: number; notes?: string }
   ): Promise<Invoice> {
     return await supabaseService.generateInvoiceForPeriod(clientId, periodStart, periodEnd, options);
+  }
+
+  // --- Payment Runs ---
+  async getPaymentRuns(): Promise<PaymentRun[]> {
+    return await supabaseService.getPaymentRuns();
+  }
+
+  async getPaymentRun(id: string): Promise<PaymentRun | undefined> {
+    return await supabaseService.getPaymentRun(id);
+  }
+
+  async createPaymentRun(periodStart: Date, periodEnd: Date): Promise<PaymentRun> {
+    return await supabaseService.createPaymentRun(periodStart, periodEnd);
+  }
+
+  async getPaymentRunItems(paymentRunId: string): Promise<PaymentRunItem[]> {
+    return await supabaseService.getPaymentRunItems(paymentRunId);
+  }
+
+  async markPaymentRunItemPaid(itemId: string): Promise<PaymentRunItem | null> {
+    return await supabaseService.markPaymentRunItemPaid(itemId);
   }
 
   // --- Quotes ---

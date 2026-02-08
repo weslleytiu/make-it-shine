@@ -79,6 +79,10 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
       a.download = `invoice-${invoice.invoiceNumber}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      // Move from draft to pending once PDF is generated (invoice "sent")
+      if (invoice.status === "draft") {
+        updateMutation.mutate({ id: invoice.id, data: { status: "pending" } });
+      }
     } finally {
       setGeneratingPdf(false);
     }
@@ -111,11 +115,13 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
   const statusVariant =
     displayStatus === "paid"
       ? "default"
-      : displayStatus === "pending" || displayStatus === "overdue"
-        ? "secondary"
-        : displayStatus === "cancelled"
-          ? "destructive"
-          : "outline";
+      : displayStatus === "overdue"
+        ? "destructive"
+        : displayStatus === "pending"
+          ? "secondary"
+          : displayStatus === "cancelled"
+            ? "destructive"
+            : "outline";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
