@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "@/lib/toast";
 import { useProfessional, useDeleteProfessional } from "@/hooks/useProfessionals";
 import { useJobs } from "@/hooks/useJobs";
 import { useClients } from "@/hooks/useClients";
@@ -65,7 +66,11 @@ export default function ProfessionalDetail() {
   const handleDelete = () => {
     if (window.confirm("Are you sure you want to delete this professional?")) {
       deleteMutation.mutate(professional.id, {
-        onSuccess: () => navigate("/dashboard/professionals"),
+        onSuccess: () => {
+          toast.success("Professional deleted.");
+          navigate("/dashboard/professionals");
+        },
+        onError: () => toast.error("Failed to delete professional."),
       });
     }
   };

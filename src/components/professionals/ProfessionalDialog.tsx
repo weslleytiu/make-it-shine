@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { professionalSchema, type Professional } from "@/lib/schemas";
+import { toast } from "@/lib/toast";
 import { useCreateProfessional, useUpdateProfessional } from "@/hooks/useProfessionals";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -103,16 +104,20 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
         if (isEditing && professional) {
             updateMutation.mutate({ id: professional.id, data: values }, {
                 onSuccess: () => {
+                    toast.success("Professional updated successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to update professional. Please try again."),
             });
         } else {
             createMutation.mutate(values, {
                 onSuccess: () => {
+                    toast.success("Professional created successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to create professional. Please try again."),
             });
         }
     };

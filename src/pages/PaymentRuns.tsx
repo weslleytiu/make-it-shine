@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "@/lib/toast";
 import { usePaymentRuns, usePaymentRunItems, useCreatePaymentRun, useMarkPaymentRunItemPaid } from "@/hooks/usePaymentRuns";
 import { useProfessionals } from "@/hooks/useProfessionals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ function BankDetailsCell({ professional }: { professional: Professional | undefi
 
   const handleCopy = () => {
     navigator.clipboard.writeText(copyText);
+    toast.success("Bank details copied.");
   };
 
   return (
@@ -86,17 +88,18 @@ export default function PaymentRuns() {
       { periodStart: periodRange.start, periodEnd: periodRange.end },
       {
         onSuccess: (run) => {
+          toast.success("Payment run created.");
           setSelectedRunId(run.id);
         },
+        onError: () => toast.error("Failed to create payment run."),
       }
     );
   };
 
   const handleMarkPaid = (item: PaymentRunItem) => {
     markPaidMutation.mutate(item.id, {
-      onSuccess: () => {
-        // Optional: toast "Marked as paid (simulated; Revolut integration coming later)"
-      },
+      onSuccess: () => toast.success("Item marked as paid."),
+      onError: () => toast.error("Failed to mark item as paid."),
     });
   };
 

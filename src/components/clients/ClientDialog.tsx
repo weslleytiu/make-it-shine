@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { clientSchema, type Client } from "@/lib/schemas";
+import { toast } from "@/lib/toast";
 import { useCreateClient, useUpdateClient } from "@/hooks/useClients";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -84,16 +85,20 @@ export function ClientDialog({ open, onOpenChange, client }: ClientDialogProps) 
         if (isEditing && client) {
             updateMutation.mutate({ id: client.id, data: values }, {
                 onSuccess: () => {
+                    toast.success("Client updated successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to update client. Please try again."),
             });
         } else {
             createMutation.mutate(values, {
                 onSuccess: () => {
+                    toast.success("Client created successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to create client. Please try again."),
             });
         }
     };

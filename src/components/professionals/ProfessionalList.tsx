@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { toast } from "@/lib/toast";
 import { useProfessionals, useDeleteProfessional } from "@/hooks/useProfessionals";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,10 @@ export function ProfessionalList() {
 
     const handleDelete = (id: string) => {
         if (window.confirm("Are you sure you want to delete this professional?")) {
-            deleteMutation.mutate(id);
+            deleteMutation.mutate(id, {
+                onSuccess: () => toast.success("Professional deleted."),
+                onError: () => toast.error("Failed to delete professional."),
+            });
         }
     };
 

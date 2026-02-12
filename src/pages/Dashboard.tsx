@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "@/lib/toast";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
 import { useJobs, useUpdateJob } from "@/hooks/useJobs";
@@ -183,7 +184,15 @@ export default function Dashboard() {
                                                 size="sm"
                                                 variant="outline"
                                                 className="gap-1.5"
-                                                onClick={() => updateJob.mutate({ id: job.id!, data: { status: "completed" } })}
+                                                onClick={() =>
+                                                updateJob.mutate(
+                                                  { id: job.id!, data: { status: "completed" } },
+                                                  {
+                                                    onSuccess: () => toast.success("Job marked as completed."),
+                                                    onError: () => toast.error("Failed to update job."),
+                                                  }
+                                                )
+                                              }
                                                 disabled={updateJob.isPending && updateJob.variables?.id === job.id}
                                             >
                                                 {updateJob.isPending && updateJob.variables?.id === job.id ? (
@@ -253,7 +262,15 @@ export default function Dashboard() {
                                                     size="sm"
                                                     variant="outline"
                                                     className="gap-1.5"
-                                                    onClick={() => updateJob.mutate({ id: job.id!, data: { status: "completed" } })}
+                                                    onClick={() =>
+                                                    updateJob.mutate(
+                                                      { id: job.id!, data: { status: "completed" } },
+                                                      {
+                                                        onSuccess: () => toast.success("Job marked as completed."),
+                                                        onError: () => toast.error("Failed to update job."),
+                                                      }
+                                                    )
+                                                  }
                                                     disabled={updateJob.isPending && updateJob.variables?.id === job.id}
                                                 >
                                                     {updateJob.isPending && updateJob.variables?.id === job.id ? (
@@ -317,7 +334,13 @@ export default function Dashboard() {
                                         quote={quote}
                                         professionals={pros ?? []}
                                         onUpdate={(updates) =>
-                                            updateQuote.mutate({ id: quote.id, data: updates })
+                                            updateQuote.mutate(
+                                              { id: quote.id, data: updates },
+                                              {
+                                                onSuccess: () => toast.success("Quote updated."),
+                                                onError: () => toast.error("Failed to update quote."),
+                                              }
+                                            )
                                         }
                                         isUpdating={updateQuote.isPending}
                                     />

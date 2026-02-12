@@ -97,3 +97,33 @@
     @apply font-serif text-3xl font-semibold tracking-tight text-foreground;
   }
 }
+
+/* Toast notifications — MIS Soft Luxury design */
+.toast-mis {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+  border: 1px solid hsl(var(--border) / 0.6) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 2px 12px -2px rgb(142 93 93 / 0.08), 0 4px 20px -4px rgb(142 93 93 / 0.06) !important;
+  font-family: var(--font-mis-sans) !important;
+}
+.toast-mis-progress {
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary))) !important;
+}
+.Toastify__toast--error.toast-mis {
+  border-left: 4px solid hsl(var(--destructive)) !important;
+}
+.Toastify__toast--success.toast-mis {
+  border-left: 4px solid hsl(var(--primary)) !important;
+}
+.Toastify__toast--info.toast-mis {
+  border-left: 4px solid hsl(var(--secondary)) !important;
+}
+.Toastify__close-button {
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 0.8;
+}
+.Toastify__close-button:hover {
+  color: hsl(var(--foreground)) !important;
+  opacity: 1;
+}

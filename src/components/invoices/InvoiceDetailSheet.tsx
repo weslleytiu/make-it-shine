@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { pdf } from "@react-pdf/renderer";
+import { toast } from "@/lib/toast";
 import {
   useInvoiceJobs,
   useUpdateInvoice,
@@ -112,8 +113,18 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
       URL.revokeObjectURL(url);
       // Move from draft to pending once PDF is generated (invoice "sent")
       if (invoice.status === "draft") {
-        updateMutation.mutate({ id: invoice.id, data: { status: "pending" } });
+        updateMutation.mutate(
+          { id: invoice.id, data: { status: "pending" } },
+          {
+            onSuccess: () => toast.success("Invoice sent and set to pending."),
+            onError: () => toast.error("Invoice updated to pending but something went wrong."),
+          }
+        );
+      } else {
+        toast.success("PDF downloaded.");
       }
+    } catch {
+      toast.error("Failed to generate PDF.");
     } finally {
       setGeneratingPdf(false);
     }
@@ -122,7 +133,13 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
   const handleMarkPaid = () => {
     updateMutation.mutate(
       { id: invoice.id, data: { status: "paid" } },
-      { onSuccess: () => onOpenChange(false) }
+      {
+        onSuccess: () => {
+          toast.success("Invoice marked as paid.");
+          onOpenChange(false);
+        },
+        onError: () => toast.error("Failed to update invoice."),
+      }
     );
   };
 
@@ -130,16 +147,34 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
     if (!window.confirm("Cancel this invoice? It will remain in the list with status Cancelled.")) return;
     updateMutation.mutate(
       { id: invoice.id, data: { status: "cancelled" } },
-      { onSuccess: () => onOpenChange(false) }
+      {
+        onSuccess: () => {
+          toast.success("Invoice cancelled.");
+          onOpenChange(false);
+        },
+        onError: () => toast.error("Failed to cancel invoice."),
+      }
     );
   };
 
   const handleAddJob = (jobId: string) => {
-    addJobMutation.mutate({ invoiceId: invoice.id, jobId });
+    addJobMutation.mutate(
+      { invoiceId: invoice.id, jobId },
+      {
+        onSuccess: () => toast.success("Job added to invoice."),
+        onError: () => toast.error("Failed to add job to invoice."),
+      }
+    );
   };
 
   const handleRemoveJob = (jobId: string) => {
-    removeJobMutation.mutate({ invoiceId: invoice.id, jobId });
+    removeJobMutation.mutate(
+      { invoiceId: invoice.id, jobId },
+      {
+        onSuccess: () => toast.success("Job removed from invoice."),
+        onError: () => toast.error("Failed to remove job from invoice."),
+      }
+    );
   };
 
   const displayStatus = isOverdue ? "overdue" : invoice.status;

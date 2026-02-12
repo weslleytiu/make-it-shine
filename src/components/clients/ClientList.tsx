@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "@/lib/toast";
 import { useClients, useDeleteClient } from "@/hooks/useClients";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,10 @@ export function ClientList() {
 
     const handleDelete = (id: string) => {
         if (window.confirm("Are you sure you want to delete this client?")) {
-            deleteMutation.mutate(id);
+            deleteMutation.mutate(id, {
+                onSuccess: () => toast.success("Client deleted."),
+                onError: () => toast.error("Failed to delete client."),
+            });
         }
     };
 

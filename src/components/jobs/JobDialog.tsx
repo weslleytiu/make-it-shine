@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { jobSchema, type Job } from "@/lib/schemas";
 import { dateToLocalDateString, localDateStringToDate } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import { useCreateJob, useUpdateJob } from "@/hooks/useJobs";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
@@ -113,16 +114,20 @@ export function JobDialog({ open, onOpenChange, job, initialDate, initialOccurre
             }
             updateMutation.mutate({ id: job.id, data: updatePayload as Partial<Job> & { occurrenceDate?: Date } }, {
                 onSuccess: () => {
+                    toast.success("Job updated successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to update job. Please try again."),
             });
         } else {
             createMutation.mutate(values as any, { // Cast to omit totalPrice/cost which are computed
                 onSuccess: () => {
+                    toast.success("Job scheduled successfully.");
                     onOpenChange(false);
                     form.reset();
-                }
+                },
+                onError: () => toast.error("Failed to schedule job. Please try again."),
             });
         }
     };

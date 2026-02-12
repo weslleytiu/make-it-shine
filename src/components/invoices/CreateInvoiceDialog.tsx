@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "@/lib/toast";
 import { useGenerateInvoiceForPeriod, useClientsWithUninvoicedWorkInPeriod } from "@/hooks/useInvoices";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -78,10 +79,12 @@ export function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: CreateInv
       },
       {
         onSuccess: () => {
+          toast.success("Invoice created successfully.");
           onOpenChange(false);
           form.reset();
           onSuccess?.();
         },
+        onError: () => toast.error("Failed to create invoice. Please try again."),
       }
     );
   };

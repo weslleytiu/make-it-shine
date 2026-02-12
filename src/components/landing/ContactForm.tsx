@@ -32,6 +32,7 @@ import { contactFormSchema, type ContactFormValues } from "@/lib/landing-validat
 import type { ContactSubmitPayload, Quote, ServiceTypeOption } from "@/types/landing";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 
 const SERVICE_OPTIONS = [
   "Residential Cleaning",
@@ -138,11 +139,13 @@ export function ContactForm({ trigger, className, trackOpen }: ContactFormProps)
         "Thank you! We'll contact you within 24 hours to discuss your cleaning needs."
       );
       form.reset();
+      toast.success("Quote requested! We'll contact you within 24 hours.");
     } catch {
       setStatus("error");
       setErrorMessage(
         "Something went wrong. Please try again or contact us directly via WhatsApp."
       );
+      toast.error("Something went wrong. Please try again or contact us via WhatsApp.");
     }
   };
 

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { toast } from "@/lib/toast";
 import { useInvoices, useDeleteInvoice, useUpdateInvoice } from "@/hooks/useInvoices";
 import { useClients } from "@/hooks/useClients";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,17 +76,25 @@ export default function Invoices() {
     if (window.confirm("Delete this invoice? This cannot be undone.")) {
       deleteMutation.mutate(id, {
         onSuccess: () => {
+          toast.success("Invoice deleted.");
           if (detailInvoice?.id === id) {
             setDetailOpen(false);
             setDetailInvoice(null);
           }
         },
+        onError: () => toast.error("Failed to delete invoice."),
       });
     }
   };
 
   const handleMarkPaid = (id: string) => {
-    updateMutation.mutate({ id, data: { status: "paid" } });
+    updateMutation.mutate(
+      { id, data: { status: "paid" } },
+      {
+        onSuccess: () => toast.success("Invoice marked as paid."),
+        onError: () => toast.error("Failed to update invoice."),
+      }
+    );
   };
 
   const openDetail = (inv: Invoice) => {
