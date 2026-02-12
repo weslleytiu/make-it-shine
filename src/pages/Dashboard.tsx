@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
-import { useJobs } from "@/hooks/useJobs";
+import { useJobs, useUpdateJob } from "@/hooks/useJobs";
 import { useQuotes, useUpdateQuote } from "@/hooks/useQuotes";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, UserCog, Calendar, CheckCircle2, Clock, FileText } from "lucide-react";
-import { startOfWeek, endOfWeek, isWithinInterval, format, isAfter } from "date-fns";
+import { Users, UserCog, Calendar, Clock, Check } from "lucide-react";
+import { startOfWeek, endOfWeek, isWithinInterval, format, isAfter, isSameDay } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export default function Dashboard() {
     const { data: jobs } = useJobs();
     const { data: quotes } = useQuotes();
     const updateQuote = useUpdateQuote();
+    const updateJob = useUpdateJob();
 
     const pendingQuotes = useMemo(
         () =>
@@ -46,18 +47,36 @@ export default function Dashboard() {
 
         const jobsThisWeek = jobs?.filter(j => isWithinInterval(j.date, { start: startWeek, end: endWeek })).length || 0;
 
-        const upcomingJobs = jobs?.filter(j => {
-            return (j.status === "scheduled" || j.status === "in_progress") && isAfter(j.date, new Date(new Date().setHours(0, 0, 0, 0)));
-        }).sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 5) || []; // Next 5 pending jobs
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const todayJobs =
+            jobs
+                ?.filter(
+                    (j) =>
+                        (j.status === "scheduled" || j.status === "in_progress") &&
+                        isSameDay(j.date, now)
+                )
+                .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")) ?? [];
+
+        const upcomingJobs =
+            jobs
+                ?.filter((j) => {
+                    return (
+                        (j.status === "scheduled" || j.status === "in_progress") &&
+                        isAfter(j.date, todayStart)
+                    );
+                })
+                .sort((a, b) => a.date.getTime() - b.date.getTime())
+                .slice(0, 5) ?? [];
 
         return {
             activeClients,
             activePros,
             jobsThisWeek,
+            todayJobs,
             upcomingJobs,
-            pendingQuotesCount: quotes?.filter((q) => q.status === "pending").length ?? 0,
         };
-    }, [clients, pros, jobs, pendingQuotes.length]);
+    }, [clients, pros, jobs]);
 
     const getClientName = (id: string) => clients?.find(c => c.id === id)?.name || "Unknown";
     const getProName = (id: string) => pros?.find(p => p.id === id)?.name || "Unassigned";
@@ -66,7 +85,7 @@ export default function Dashboard() {
         <div className="space-y-6">
             <h2 className="page-title">Dashboard</h2>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Active Clients</CardTitle>
@@ -99,27 +118,80 @@ export default function Dashboard() {
                         <p className="text-xs text-muted-foreground">Scheduled Mon-Sun</p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-                        <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">100%</div>
-                        <p className="text-xs text-muted-foreground">All jobs handled</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Quotes to approve</CardTitle>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.pendingQuotesCount}</div>
-                        <p className="text-xs text-muted-foreground">From landing page</p>
-                    </CardContent>
-                </Card>
             </div>
+
+            {/* Today's Jobs — above Upcoming */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Today&apos;s Jobs</CardTitle>
+                    <CardDescription>
+                        Scheduled and in-progress jobs for today.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Client</TableHead>
+                                <TableHead>Date/Time</TableHead>
+                                <TableHead>Professional</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="w-[100px] text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {stats.todayJobs.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                        No jobs scheduled for today.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                stats.todayJobs.map((job) => (
+                                    <TableRow key={job.id}>
+                                        <TableCell className="font-medium">{getClientName(job.clientId)}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                                {format(job.date, "EEE d MMM")} at {job.startTime}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Link
+                                                to={`/dashboard/professionals/${job.professionalId}`}
+                                                className="text-primary hover:underline"
+                                            >
+                                                {getProName(job.professionalId)}
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="capitalize">
+                                                {job.status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="gap-1.5"
+                                                onClick={() => updateJob.mutate({ id: job.id!, data: { status: "completed" } })}
+                                                disabled={updateJob.isPending && updateJob.variables?.id === job.id}
+                                            >
+                                                {updateJob.isPending && updateJob.variables?.id === job.id ? (
+                                                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                ) : (
+                                                    <Check className="h-3.5 w-3.5" />
+                                                )}
+                                                Done
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4">
@@ -137,12 +209,13 @@ export default function Dashboard() {
                                     <TableHead>Date/Time</TableHead>
                                     <TableHead>Professional</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {stats.upcomingJobs.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
                                             No upcoming jobs.
                                         </TableCell>
                                     </TableRow>
@@ -168,6 +241,22 @@ export default function Dashboard() {
                                                 <Badge variant="outline" className="capitalize">
                                                     {job.status}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="gap-1.5"
+                                                    onClick={() => updateJob.mutate({ id: job.id!, data: { status: "completed" } })}
+                                                    disabled={updateJob.isPending && updateJob.variables?.id === job.id}
+                                                >
+                                                    {updateJob.isPending && updateJob.variables?.id === job.id ? (
+                                                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    ) : (
+                                                        <Check className="h-3.5 w-3.5" />
+                                                    )}
+                                                    Done
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))

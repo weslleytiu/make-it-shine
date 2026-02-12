@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { format, startOfWeek, addDays, isSameDay } from "date-fns";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { format, startOfWeek, addDays, isSameDay, getDay, isWithinInterval, isBefore } from "date-fns";
 import { useJobs } from "@/hooks/useJobs";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
@@ -7,7 +7,45 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { JobDialog } from "./JobDialog";
 import { type Job } from "@/lib/schemas";
-import { cn } from "@/lib/utils";
+import { cn, dateToLocalDateString } from "@/lib/utils";
+
+/** One job occurrence on a specific date (real for one-time, virtual for recurring). */
+export type JobOccurrence = { job: Job; date: Date };
+
+/**
+ * Expands jobs into occurrences for the visible week.
+ * One-time jobs: one occurrence on their date if in range.
+ * Recurring jobs: one occurrence per same weekday in the week that is on or after the job start date.
+ */
+function getJobOccurrencesForWeek(jobs: Job[] | undefined, weekStart: Date): JobOccurrence[] {
+    if (!jobs?.length) return [];
+    const weekEnd = addDays(weekStart, 6);
+    const result: JobOccurrence[] = [];
+    const jobDayOfWeek = (d: Date) => getDay(d); // 0 = Sun, 1 = Mon, ...
+
+    for (const job of jobs) {
+        if (job.type === "one_time") {
+            if (isWithinInterval(job.date, { start: weekStart, end: weekEnd })) {
+                result.push({ job, date: job.date });
+            }
+        } else {
+            // Recurring: same weekday, every week from job.date onwards
+            for (let i = 0; i < 7; i++) {
+                const day = addDays(weekStart, i);
+                if (jobDayOfWeek(day) !== jobDayOfWeek(job.date)) continue;
+                if (isBefore(day, job.date)) continue;
+                if (isWithinInterval(day, { start: weekStart, end: weekEnd })) {
+                    result.push({ job, date: day });
+                }
+            }
+        }
+    }
+    return result;
+}
+
+function occurrenceKey(occ: JobOccurrence): string {
+    return `${occ.job.id}-${dateToLocalDateString(occ.date)}`;
+}
 
 export function WeeklyCalendar() {
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -62,9 +100,18 @@ export function WeeklyCalendar() {
         }
     };
 
-    const selectedDayJobs =
-        jobs?.filter((job) => isSameDay(job.date, selectedDay)).sort((a, b) => a.startTime.localeCompare(b.startTime)) ||
-        [];
+    const weekOccurrences = useMemo(
+        () => getJobOccurrencesForWeek(jobs, startDate),
+        [jobs, startDate]
+    );
+
+    const selectedDayOccurrences = useMemo(
+        () =>
+            weekOccurrences
+                .filter((occ) => isSameDay(occ.date, selectedDay))
+                .sort((a, b) => a.job.startTime.localeCompare(b.job.startTime)),
+        [weekOccurrences, selectedDay]
+    );
 
     if (isLoading) {
         return (
@@ -124,7 +171,7 @@ export function WeeklyCalendar() {
                         const isToday = isSameDay(day, new Date());
                         const isSelected = isSameDay(day, selectedDay);
                         const dayJobCount =
-                            jobs?.filter((job) => isSameDay(job.date, day)).length ?? 0;
+                            weekOccurrences.filter((occ) => isSameDay(occ.date, day)).length;
                         return (
                             <button
                                 key={day.toISOString()}
@@ -169,22 +216,22 @@ export function WeeklyCalendar() {
                         {format(selectedDay, "EEEE, MMM d")}
                     </p>
                     <div className="space-y-2">
-                        {selectedDayJobs.map((job) => (
+                        {selectedDayOccurrences.map((occ) => (
                             <button
-                                key={job.id}
+                                key={occurrenceKey(occ)}
                                 type="button"
-                                onClick={() => handleEditJob(job)}
+                                onClick={() => handleEditJob(occ.job)}
                                 className={cn(
                                     "w-full rounded-lg border p-3 text-left transition-opacity active:opacity-90",
                                     "min-h-[72px] touch-manipulation",
-                                    getStatusColor(job.status)
+                                    getStatusColor(occ.job.status)
                                 )}
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
-                                        <div className="font-semibold text-foreground">{job.startTime}</div>
-                                        <div className="mt-0.5 truncate font-medium">{getClientName(job.clientId)}</div>
-                                        <div className="mt-0.5 text-sm text-muted-foreground">{getProName(job.professionalId)}</div>
+                                        <div className="font-semibold text-foreground">{occ.job.startTime}</div>
+                                        <div className="mt-0.5 truncate font-medium">{getClientName(occ.job.clientId)}</div>
+                                        <div className="mt-0.5 text-sm text-muted-foreground">{getProName(occ.job.professionalId)}</div>
                                     </div>
                                 </div>
                             </button>
@@ -203,9 +250,9 @@ export function WeeklyCalendar() {
             {/* Desktop: 7-column grid */}
             <div className="hidden md:grid md:grid-cols-7 min-h-[520px] gap-3">
                 {weekDays.map((day) => {
-                    const dayJobs =
-                        jobs?.filter((job) => isSameDay(job.date, day)).sort((a, b) => a.startTime.localeCompare(b.startTime)) ||
-                        [];
+                    const dayOccurrences = weekOccurrences
+                        .filter((occ) => isSameDay(occ.date, day))
+                        .sort((a, b) => a.job.startTime.localeCompare(b.job.startTime));
                     const isToday = isSameDay(day, new Date());
 
                     return (
@@ -226,19 +273,19 @@ export function WeeklyCalendar() {
                                 </div>
                             </div>
                             <div className="flex-1 space-y-2 overflow-y-auto">
-                                {dayJobs.map((job) => (
+                                {dayOccurrences.map((occ) => (
                                     <button
-                                        key={job.id}
+                                        key={occurrenceKey(occ)}
                                         type="button"
-                                        onClick={() => handleEditJob(job)}
+                                        onClick={() => handleEditJob(occ.job)}
                                         className={cn(
                                             "w-full rounded-lg border p-2 text-left text-xs transition-opacity hover:opacity-90",
-                                            getStatusColor(job.status)
+                                            getStatusColor(occ.job.status)
                                         )}
                                     >
-                                        <div className="font-bold">{job.startTime}</div>
-                                        <div className="font-semibold truncate">{getClientName(job.clientId)}</div>
-                                        <div className="truncate opacity-80">{getProName(job.professionalId)}</div>
+                                        <div className="font-bold">{occ.job.startTime}</div>
+                                        <div className="font-semibold truncate">{getClientName(occ.job.clientId)}</div>
+                                        <div className="truncate opacity-80">{getProName(occ.job.professionalId)}</div>
                                     </button>
                                 ))}
                                 <Button
