@@ -107,7 +107,6 @@ interface DbPaymentRunItem {
 interface DbJob {
   id: string;
   client_id: string;
-  professional_id: string;
   date: string;
   start_time: string;
   duration_hours: number;
@@ -120,6 +119,12 @@ interface DbJob {
   recurring_group_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface DbJobProfessional {
+  job_id: string;
+  professional_id: string;
+  cost: number;
 }
 
 interface DbQuote {
@@ -292,14 +297,14 @@ function getEffectiveProfessionalRate(professional: Professional, serviceKind: "
   return professional.ratePerHour;
 }
 
-function dbJobToJob(db: DbJob, client: Client, professional: Professional): Job {
+function dbJobToJob(db: DbJob, professionalIds: string[]): Job {
   const serviceKind = db.service_kind ?? "regular";
-  const clientRate = getEffectiveClientRate(client, serviceKind);
-  const professionalRate = getEffectiveProfessionalRate(professional, serviceKind);
+  const totalPrice = db.total_price ?? 0;
+  const cost = db.cost ?? 0;
   return {
     id: db.id,
     clientId: db.client_id,
-    professionalId: db.professional_id,
+    professionalIds,
     date: localDateStringToDate(db.date),
     startTime: normalizeTimeToHHMM(db.start_time),
     durationHours: db.duration_hours,
@@ -307,8 +312,8 @@ function dbJobToJob(db: DbJob, client: Client, professional: Professional): Job 
     serviceKind,
     status: db.status,
     notes: db.notes || undefined,
-    totalPrice: db.total_price ?? db.duration_hours * clientRate,
-    cost: db.cost ?? db.duration_hours * professionalRate,
+    totalPrice,
+    cost,
     createdAt: new Date(db.created_at),
     recurringGroupId: db.recurring_group_id || undefined,
   };
@@ -317,7 +322,6 @@ function dbJobToJob(db: DbJob, client: Client, professional: Professional): Job 
 function jobToDbJob(job: Omit<Job, "id" | "createdAt" | "totalPrice" | "cost">): Omit<DbJob, "id" | "created_at" | "updated_at" | "total_price" | "cost"> {
   return {
     client_id: job.clientId,
-    professional_id: job.professionalId,
     date: dateToLocalDateString(job.date),
     start_time: job.startTime,
     duration_hours: job.durationHours,
@@ -528,229 +532,134 @@ class SupabaseService {
 
   // --- Jobs ---
   async getJobs(): Promise<Job[]> {
-    const { data, error } = await supabase
+    const { data: jobsData, error: jobsError } = await supabase
       .from("jobs")
-      .select(`
-        *,
-        clients:client_id (
-          id,
-          name,
-          price_per_hour,
-          deep_clean_price_per_hour
-        ),
-        professionals:professional_id (
-          id,
-          name,
-          rate_per_hour,
-          deep_clean_rate_per_hour
-        )
-      `)
+      .select("*")
       .order("date", { ascending: false })
       .order("start_time", { ascending: true });
 
-    if (error) {
-      throw new Error(`Failed to fetch jobs: ${error.message}`);
+    if (jobsError) {
+      throw new Error(`Failed to fetch jobs: ${jobsError.message}`);
     }
 
-    // Transform the data
-    return (data as any[]).map((item) => {
-      const dbJob = item as DbJob;
-      const client = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
-      const professional = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
+    const dbJobs = (jobsData ?? []) as DbJob[];
+    if (dbJobs.length === 0) return [];
 
-      // Create minimal Client and Professional objects for conversion
-      const clientObj: Client = {
-        id: client.id,
-        name: client.name,
-        address: "",
-        postcode: "",
-        city: "",
-        phone: "",
-        email: "",
-        type: "residential",
-        contractType: "fixed",
-        frequency: null,
-        pricePerHour: client.price_per_hour,
-        deepCleanPricePerHour: client.deep_clean_price_per_hour ?? undefined,
-        status: "active",
-        createdAt: new Date(),
-        invoiceFrequency: "monthly",
-        autoGenerateInvoice: true,
-      };
+    const jobIds = dbJobs.map((j) => j.id);
+    const { data: jpData, error: jpError } = await supabase
+      .from("job_professionals")
+      .select("job_id, professional_id")
+      .in("job_id", jobIds);
 
-      const professionalObj: Professional = {
-        id: professional.id,
-        name: professional.name,
-        phone: "",
-        email: "",
-        ratePerHour: professional.rate_per_hour,
-        deepCleanRatePerHour: professional.deep_clean_rate_per_hour ?? undefined,
-        availability: { mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
-        status: "active",
-        createdAt: new Date(),
-      };
+    if (jpError) {
+      throw new Error(`Failed to fetch job professionals: ${jpError.message}`);
+    }
 
-      return dbJobToJob(dbJob, clientObj, professionalObj);
+    const jpRows = (jpData ?? []) as DbJobProfessional[];
+    const professionalIdsByJobId = new Map<string, string[]>();
+    for (const jp of jpRows) {
+      const arr = professionalIdsByJobId.get(jp.job_id) ?? [];
+      arr.push(jp.professional_id);
+      professionalIdsByJobId.set(jp.job_id, arr);
+    }
+
+    return dbJobs.map((dbJob) => {
+      const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
+      return dbJobToJob(dbJob, professionalIds);
     });
   }
 
   async getJobsByDate(date: Date): Promise<Job[]> {
     const dateStr = dateToLocalDateString(date);
 
-    const { data, error } = await supabase
+    const { data: jobsData, error: jobsError } = await supabase
       .from("jobs")
-      .select(`
-        *,
-        clients:client_id (
-          id,
-          name,
-          price_per_hour,
-          deep_clean_price_per_hour
-        ),
-        professionals:professional_id (
-          id,
-          name,
-          rate_per_hour,
-          deep_clean_rate_per_hour
-        )
-      `)
+      .select("*")
       .eq("date", dateStr)
       .order("start_time", { ascending: true });
 
-    if (error) {
-      throw new Error(`Failed to fetch jobs by date: ${error.message}`);
+    if (jobsError) {
+      throw new Error(`Failed to fetch jobs by date: ${jobsError.message}`);
     }
 
-    // Transform the data
-    return (data as any[]).map((item) => {
-      const dbJob = item as DbJob;
-      const client = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
-      const professional = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
+    const dbJobs = (jobsData ?? []) as DbJob[];
+    if (dbJobs.length === 0) return [];
 
-      const clientObj: Client = {
-        id: client.id,
-        name: client.name,
-        address: "",
-        postcode: "",
-        city: "",
-        phone: "",
-        email: "",
-        type: "residential",
-        contractType: "fixed",
-        frequency: null,
-        pricePerHour: client.price_per_hour,
-        deepCleanPricePerHour: client.deep_clean_price_per_hour ?? undefined,
-        status: "active",
-        createdAt: new Date(),
-        invoiceFrequency: "monthly",
-        autoGenerateInvoice: true,
-      };
+    const jobIds = dbJobs.map((j) => j.id);
+    const { data: jpData, error: jpError } = await supabase
+      .from("job_professionals")
+      .select("job_id, professional_id")
+      .in("job_id", jobIds);
 
-      const professionalObj: Professional = {
-        id: professional.id,
-        name: professional.name,
-        phone: "",
-        email: "",
-        ratePerHour: professional.rate_per_hour,
-        deepCleanRatePerHour: professional.deep_clean_rate_per_hour ?? undefined,
-        availability: { mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
-        status: "active",
-        createdAt: new Date(),
-      };
+    if (jpError) {
+      throw new Error(`Failed to fetch job professionals: ${jpError.message}`);
+    }
 
-      return dbJobToJob(dbJob, clientObj, professionalObj);
+    const jpRows = (jpData ?? []) as DbJobProfessional[];
+    const professionalIdsByJobId = new Map<string, string[]>();
+    for (const jp of jpRows) {
+      const arr = professionalIdsByJobId.get(jp.job_id) ?? [];
+      arr.push(jp.professional_id);
+      professionalIdsByJobId.set(jp.job_id, arr);
+    }
+
+    return dbJobs.map((dbJob) => {
+      const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
+      return dbJobToJob(dbJob, professionalIds);
     });
   }
 
   async addJob(job: Omit<Job, "id" | "createdAt" | "totalPrice" | "cost">): Promise<Job> {
-    // Fetch client and professional to calculate prices
     const client = await this.getClient(job.clientId);
-    const professional = await this.getProfessional(job.professionalId);
+    if (!client) throw new Error("Invalid client");
 
-    if (!client || !professional) {
-      throw new Error("Invalid client or professional");
+    const serviceKind = job.serviceKind ?? "regular";
+    const clientRate = getEffectiveClientRate(client, serviceKind);
+    const professionalCosts: { professionalId: string; cost: number }[] = [];
+
+    for (const proId of job.professionalIds) {
+      const pro = await this.getProfessional(proId);
+      if (!pro) throw new Error(`Invalid professional: ${proId}`);
+      const cost = job.durationHours * getEffectiveProfessionalRate(pro, serviceKind);
+      professionalCosts.push({ professionalId: proId, cost });
     }
 
-    const dbJob = jobToDbJob(job);
-    const serviceKind = job.serviceKind ?? "regular";
-    const totalPrice = job.durationHours * getEffectiveClientRate(client, serviceKind);
-    const cost = job.durationHours * getEffectiveProfessionalRate(professional, serviceKind);
+    const totalPrice = job.durationHours * clientRate * job.professionalIds.length;
+    const totalCost = professionalCosts.reduce((sum, p) => sum + p.cost, 0);
 
-    const { data, error } = await supabase
+    const dbJob = jobToDbJob(job);
+    const { data: jobRow, error: jobError } = await supabase
       .from("jobs")
       .insert({
         ...dbJob,
         total_price: totalPrice,
-        cost: cost,
+        cost: totalCost,
       })
-      .select(`
-        *,
-        clients:client_id (
-          id,
-          name,
-          price_per_hour,
-          deep_clean_price_per_hour
-        ),
-        professionals:professional_id (
-          id,
-          name,
-          rate_per_hour,
-          deep_clean_rate_per_hour
-        )
-      `)
+      .select("*")
       .single();
 
-    if (error) {
-      throw new Error(`Failed to create job: ${error.message}`);
+    if (jobError) throw new Error(`Failed to create job: ${jobError.message}`);
+    const dbJobResult = jobRow as DbJob;
+
+    const { error: jpError } = await supabase.from("job_professionals").insert(
+      professionalCosts.map((p) => ({
+        job_id: dbJobResult.id,
+        professional_id: p.professionalId,
+        cost: p.cost,
+      }))
+    );
+    if (jpError) {
+      await supabase.from("jobs").delete().eq("id", dbJobResult.id);
+      throw new Error(`Failed to link professionals to job: ${jpError.message}`);
     }
 
-    const item = data as any;
-    const dbJobResult = item as DbJob;
-    const clientData = item.clients as { id: string; name: string; price_per_hour: number; deep_clean_price_per_hour?: number | null };
-    const professionalData = item.professionals as { id: string; name: string; rate_per_hour: number; deep_clean_rate_per_hour?: number | null };
-
-    const clientObj: Client = {
-      id: clientData.id,
-      name: clientData.name,
-      address: client.address,
-      postcode: client.postcode,
-      city: client.city,
-      phone: client.phone,
-      email: client.email,
-      type: client.type,
-      contractType: client.contractType,
-      frequency: client.frequency,
-      pricePerHour: clientData.price_per_hour,
-      deepCleanPricePerHour: clientData.deep_clean_price_per_hour ?? undefined,
-      status: client.status,
-      createdAt: client.createdAt,
-      invoiceFrequency: client.invoiceFrequency,
-      invoiceDayOfMonth: client.invoiceDayOfMonth,
-      invoiceDayOfWeek: client.invoiceDayOfWeek,
-      autoGenerateInvoice: client.autoGenerateInvoice,
-      invoiceNotes: client.invoiceNotes,
-    };
-
-    const professionalObj: Professional = {
-      id: professionalData.id,
-      name: professionalData.name,
-      phone: professional.phone,
-      email: professional.email,
-      ratePerHour: professionalData.rate_per_hour,
-      deepCleanRatePerHour: professionalData.deep_clean_rate_per_hour ?? undefined,
-      availability: professional.availability,
-      status: professional.status,
-      createdAt: professional.createdAt,
-    };
-
-    return dbJobToJob(dbJobResult, clientObj, professionalObj);
+    return dbJobToJob(dbJobResult, job.professionalIds);
   }
 
   async updateJob(id: string, updates: Partial<Job>): Promise<Job | null> {
     const dbUpdates: Partial<DbJob> = {};
 
     if (updates.clientId !== undefined) dbUpdates.client_id = updates.clientId;
-    if (updates.professionalId !== undefined) dbUpdates.professional_id = updates.professionalId;
     if (updates.date !== undefined) dbUpdates.date = dateToLocalDateString(updates.date);
     if (updates.startTime !== undefined) dbUpdates.start_time = updates.startTime;
     if (updates.durationHours !== undefined) dbUpdates.duration_hours = updates.durationHours;
@@ -760,74 +669,67 @@ class SupabaseService {
     if (updates.recurringGroupId !== undefined) dbUpdates.recurring_group_id = updates.recurringGroupId || null;
     if (updates.serviceKind !== undefined) dbUpdates.service_kind = updates.serviceKind;
 
-    // Recalculate prices if duration, client, professional, or service kind changed
+    const allJobs = await this.getJobs();
+    const jobToUpdate = allJobs.find((j) => j.id === id);
+    if (!jobToUpdate) return null;
+
+    const professionalIds = updates.professionalIds ?? jobToUpdate.professionalIds;
+    const durationHours = updates.durationHours ?? jobToUpdate.durationHours;
+    const serviceKind = updates.serviceKind ?? jobToUpdate.serviceKind ?? "regular";
+    const clientId = updates.clientId ?? jobToUpdate.clientId;
+
     const recalc =
       updates.durationHours !== undefined ||
       updates.clientId !== undefined ||
-      updates.professionalId !== undefined ||
+      updates.professionalIds !== undefined ||
       updates.serviceKind !== undefined;
+
     if (recalc) {
-      const currentJob = await this.getJobs();
-      const jobToUpdate = currentJob.find((j) => j.id === id);
-
-      if (jobToUpdate) {
-        const clientId = updates.clientId ?? jobToUpdate.clientId;
-        const professionalId = updates.professionalId ?? jobToUpdate.professionalId;
-        const durationHours = updates.durationHours ?? jobToUpdate.durationHours;
-        const serviceKind = updates.serviceKind ?? jobToUpdate.serviceKind ?? "regular";
-
-        const client = await this.getClient(clientId);
-        const professional = await this.getProfessional(professionalId);
-
-        if (client && professional) {
-          dbUpdates.total_price = durationHours * getEffectiveClientRate(client, serviceKind);
-          dbUpdates.cost = durationHours * getEffectiveProfessionalRate(professional, serviceKind);
-        }
+      const client = await this.getClient(clientId);
+      if (client) {
+        const clientRate = getEffectiveClientRate(client, serviceKind);
+        dbUpdates.total_price = durationHours * clientRate * professionalIds.length;
       }
+      let totalCost = 0;
+      for (const proId of professionalIds) {
+        const pro = await this.getProfessional(proId);
+        if (pro) totalCost += durationHours * getEffectiveProfessionalRate(pro, serviceKind);
+      }
+      dbUpdates.cost = totalCost;
     }
 
     const { data, error } = await supabase
       .from("jobs")
       .update(dbUpdates)
       .eq("id", id)
-      .select(`
-        *,
-        clients:client_id (
-          id,
-          name,
-          price_per_hour,
-          deep_clean_price_per_hour
-        ),
-        professionals:professional_id (
-          id,
-          name,
-          rate_per_hour,
-          deep_clean_rate_per_hour
-        )
-      `)
+      .select("*")
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
-        // Not found
-        return null;
-      }
+      if (error.code === "PGRST116") return null;
       throw new Error(`Failed to update job: ${error.message}`);
     }
-
     if (!data) return null;
 
-    const item = data as any;
-    const dbJobResult = item as DbJob;
-
-    const client = await this.getClient(dbJobResult.client_id);
-    const professional = await this.getProfessional(dbJobResult.professional_id);
-
-    if (!client || !professional) {
-      throw new Error("Client or professional not found");
+    if (updates.professionalIds !== undefined) {
+      await supabase.from("job_professionals").delete().eq("job_id", id);
+      const client = await this.getClient(clientId);
+      if (client && professionalIds.length > 0) {
+        const rows: { job_id: string; professional_id: string; cost: number }[] = [];
+        for (const proId of professionalIds) {
+          const pro = await this.getProfessional(proId);
+          if (pro) {
+            const cost = durationHours * getEffectiveProfessionalRate(pro, serviceKind);
+            rows.push({ job_id: id, professional_id: proId, cost });
+          }
+        }
+        if (rows.length > 0) {
+          await supabase.from("job_professionals").insert(rows);
+        }
+      }
     }
 
-    return dbJobToJob(dbJobResult, client, professional);
+    return dbJobToJob(data as DbJob, professionalIds);
   }
 
   async deleteJob(id: string): Promise<void> {
@@ -986,7 +888,7 @@ class SupabaseService {
     return data ? dbPaymentRunToPaymentRun(data as DbPaymentRun) : undefined;
   }
 
-  /** Create a payment run for the period: sums completed job costs per professional and creates run + items. */
+  /** Create a payment run for the period: sums completed job costs per professional from job_professionals. */
   async createPaymentRun(periodStart: Date, periodEnd: Date): Promise<PaymentRun> {
     const startStr = dateToLocalDateString(periodStart);
     const endStr = dateToLocalDateString(periodEnd);
@@ -998,11 +900,24 @@ class SupabaseService {
       const t = j.date.getTime();
       return t >= startT && t <= endT;
     });
+    const jobIds = completedInPeriod.map((j) => j.id);
+    if (jobIds.length === 0) {
+      const { data: runData, error: runError } = await supabase
+        .from("payment_runs")
+        .insert({ period_start: startStr, period_end: endStr })
+        .select()
+        .single();
+      if (runError) throw new Error(`Failed to create payment run: ${runError.message}`);
+      return dbPaymentRunToPaymentRun(runData as DbPaymentRun);
+    }
+    const { data: jpData, error: jpError } = await supabase
+      .from("job_professionals")
+      .select("professional_id, cost")
+      .in("job_id", jobIds);
+    if (jpError) throw new Error(`Failed to fetch job professionals: ${jpError.message}`);
     const amountByProfessional = new Map<string, number>();
-    for (const job of completedInPeriod) {
-      const pid = job.professionalId;
-      const cost = job.cost ?? 0;
-      amountByProfessional.set(pid, (amountByProfessional.get(pid) ?? 0) + cost);
+    for (const row of (jpData ?? []) as { professional_id: string; cost: number }[]) {
+      amountByProfessional.set(row.professional_id, (amountByProfessional.get(row.professional_id) ?? 0) + Number(row.cost));
     }
     const { data: runData, error: runError } = await supabase
       .from("payment_runs")

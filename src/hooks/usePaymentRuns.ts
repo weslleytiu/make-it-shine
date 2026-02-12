@@ -39,7 +39,7 @@ export function useMarkPaymentRunItemPaid() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (itemId: string) => api.markPaymentRunItemPaid(itemId),
-    onSuccess: (_, itemId) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-runs"] });
       queryClient.invalidateQueries({ queryKey: ["payment-runs", undefined, "items"] });
       queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === "payment-runs" });

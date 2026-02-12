@@ -10,7 +10,7 @@ import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
 
 const WEEK_STARTS_ON = 1; // Monday
 import { Plus, Landmark, Check, Copy } from "lucide-react";
-import type { PaymentRun, PaymentRunItem } from "@/lib/schemas";
+import type { PaymentRunItem } from "@/lib/schemas";
 import type { Professional } from "@/lib/schemas";
 
 function BankDetailsCell({ professional }: { professional: Professional | undefined }) {

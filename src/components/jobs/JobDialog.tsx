@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 // Schema wrapper to handle date conversion from string/date picker if needed
 // For now we use the main schema but might need a form-specific one if date handling is complex
@@ -36,7 +38,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
         resolver: zodResolver(jobSchema) as any,
         defaultValues: {
             clientId: "",
-            professionalId: "",
+            professionalIds: [],
             date: new Date(),
             startTime: "09:00",
             durationHours: 2,
@@ -54,7 +56,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
             } else {
                 form.reset({
                     clientId: "",
-                    professionalId: "",
+                    professionalIds: [],
                     date: initialDate || new Date(),
                     startTime: "09:00",
                     durationHours: 2,
@@ -127,24 +129,34 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
 
                             <FormField
                                 control={form.control as any}
-                                name="professionalId"
+                                name="professionalIds"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Professional</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select Pro" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {activePros.map(pro => (
-                                                    <SelectItem key={pro.id} value={pro.id}>
-                                                        {pro.name}
-                                                    </SelectItem>
+                                        <FormLabel>Professionals</FormLabel>
+                                        <FormControl>
+                                            <div className={cn("rounded-md border border-input bg-background p-3 max-h-[200px] overflow-y-auto space-y-2")}>
+                                                {activePros.map((pro) => (
+                                                    <label
+                                                        key={pro.id}
+                                                        className="flex items-center gap-2 cursor-pointer rounded-sm px-2 py-1.5 hover:bg-muted/50"
+                                                    >
+                                                        <Checkbox
+                                                            checked={field.value?.includes(pro.id) ?? false}
+                                                            onCheckedChange={(checked) => {
+                                                                const next = checked
+                                                                    ? [...(field.value ?? []), pro.id]
+                                                                    : (field.value ?? []).filter((id: string) => id !== pro.id);
+                                                                field.onChange(next);
+                                                            }}
+                                                        />
+                                                        <span className="text-sm font-medium">{pro.name}</span>
+                                                    </label>
                                                 ))}
-                                            </SelectContent>
-                                        </Select>
+                                                {activePros.length === 0 && (
+                                                    <p className="text-sm text-muted-foreground">No active professionals.</p>
+                                                )}
+                                            </div>
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}

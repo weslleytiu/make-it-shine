@@ -77,7 +77,7 @@ export const professionalSchema = z.object({
 export const jobSchema = z.object({
     id: z.string().uuid().optional(),
     clientId: z.string().uuid("Client is required"),
-    professionalId: z.string().uuid("Professional is required"),
+    professionalIds: z.array(z.string().uuid()).min(1, "At least one professional is required"),
     date: z.date(),
     startTime: z.string().regex(/^\d{2}:\d{2}$/, "Format HH:MM"),
     durationHours: z.coerce.number().min(0.5, "Min duration 30min"),

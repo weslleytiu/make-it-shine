@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useClients } from "@/hooks/useClients";
 import { useProfessionals } from "@/hooks/useProfessionals";
@@ -80,6 +80,18 @@ export default function Dashboard() {
 
     const getClientName = (id: string) => clients?.find(c => c.id === id)?.name || "Unknown";
     const getProName = (id: string) => pros?.find(p => p.id === id)?.name || "Unassigned";
+    const renderJobProfessionals = (job: { professionalIds: string[] }) =>
+        job.professionalIds.length === 0
+            ? "—"
+            : job.professionalIds.map((proId) => (
+                  <Link
+                      key={proId}
+                      to={`/dashboard/professionals/${proId}`}
+                      className="text-primary hover:underline"
+                  >
+                      {getProName(proId)}
+                  </Link>
+              )).reduce((acc: React.ReactNode[], el, i) => (i === 0 ? [el] : [...acc, ", ", el]), []);
 
     return (
         <div className="space-y-6">
@@ -157,12 +169,9 @@ export default function Dashboard() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Link
-                                                to={`/dashboard/professionals/${job.professionalId}`}
-                                                className="text-primary hover:underline"
-                                            >
-                                                {getProName(job.professionalId)}
-                                            </Link>
+                                            <span className="flex flex-wrap gap-x-1 gap-y-0 items-center">
+                                                {renderJobProfessionals(job)}
+                                            </span>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="capitalize">
@@ -230,12 +239,9 @@ export default function Dashboard() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Link
-                                                    to={`/dashboard/professionals/${job.professionalId}`}
-                                                    className="text-primary hover:underline"
-                                                >
-                                                    {getProName(job.professionalId)}
-                                                </Link>
+                                                <span className="flex flex-wrap gap-x-1 gap-y-0 items-center">
+                                                    {renderJobProfessionals(job)}
+                                                </span>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className="capitalize">

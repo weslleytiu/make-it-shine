@@ -36,7 +36,7 @@ export default function ProfessionalDetail() {
 
   const professionalJobs = professional
     ? jobs
-        .filter((j) => j.professionalId === professional.id)
+        .filter((j) => j.professionalIds?.includes(professional.id))
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
   const getClientName = (clientId: string) =>

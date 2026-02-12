@@ -83,7 +83,8 @@ export function WeeklyCalendar() {
     };
 
     const getClientName = (id: string) => clients?.find((c) => c.id === id)?.name || "Unknown Client";
-    const getProName = (id: string) => professionals?.find((p) => p.id === id)?.name.split(" ")[0] || "Unknown Pro";
+    const getProNameList = (ids: string[]): string[] =>
+        ids.length === 0 ? ["—"] : ids.map((id) => professionals?.find((p) => p.id === id)?.name ?? "—").filter(Boolean);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -231,7 +232,11 @@ export function WeeklyCalendar() {
                                     <div className="min-w-0 flex-1">
                                         <div className="font-semibold text-foreground">{occ.job.startTime}</div>
                                         <div className="mt-0.5 truncate font-medium">{getClientName(occ.job.clientId)}</div>
-                                        <div className="mt-0.5 text-sm text-muted-foreground">{getProName(occ.job.professionalId)}</div>
+                                        <div className="mt-0.5 flex flex-col text-sm text-muted-foreground">
+                                            {getProNameList(occ.job.professionalIds).map((name, i) => (
+                                                <span key={i} className="truncate">{name}</span>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </button>
@@ -285,7 +290,11 @@ export function WeeklyCalendar() {
                                     >
                                         <div className="font-bold">{occ.job.startTime}</div>
                                         <div className="font-semibold truncate">{getClientName(occ.job.clientId)}</div>
-                                        <div className="truncate opacity-80">{getProName(occ.job.professionalId)}</div>
+                                        <div className="flex flex-col opacity-80">
+                                            {getProNameList(occ.job.professionalIds).map((name, i) => (
+                                                <span key={i} className="truncate text-xs">{name}</span>
+                                            ))}
+                                        </div>
                                     </button>
                                 ))}
                                 <Button
