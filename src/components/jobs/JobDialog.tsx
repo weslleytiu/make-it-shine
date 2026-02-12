@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { Professional } from "@/lib/schemas";
 
 // getDay(): 0 = Sun, 1 = Mon, ... 6 = Sat -> availability keys
@@ -33,9 +32,11 @@ interface JobDialogProps {
     onOpenChange: (open: boolean) => void;
     job?: Job | null;
     initialDate?: Date;
+    /** When editing a recurring job, the date of the occurrence being edited (so only that occurrence's status is updated). */
+    initialOccurrenceDate?: Date | null;
 }
 
-export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogProps) {
+export function JobDialog({ open, onOpenChange, job, initialDate, initialOccurrenceDate }: JobDialogProps) {
     const createMutation = useCreateJob();
     const updateMutation = useUpdateJob();
     const { data: clients } = useClients();
@@ -95,7 +96,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
 
     const onSubmit = (values: z.infer<typeof jobSchema>) => {
         if (isEditing && job) {
-            const updatePayload = {
+            const updatePayload: Record<string, unknown> = {
                 clientId: values.clientId,
                 professionalIds: values.professionalIds ?? [],
                 date: values.date,
@@ -107,7 +108,10 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                 notes: values.notes,
                 recurringGroupId: values.recurringGroupId,
             };
-            updateMutation.mutate({ id: job.id, data: updatePayload }, {
+            if (job.type === "recurring" && initialOccurrenceDate) {
+                updatePayload.occurrenceDate = initialOccurrenceDate;
+            }
+            updateMutation.mutate({ id: job.id, data: updatePayload as Partial<Job> & { occurrenceDate?: Date } }, {
                 onSuccess: () => {
                     onOpenChange(false);
                     form.reset();
@@ -233,7 +237,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                                                             size="icon"
                                                                             className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
                                                                             onClick={() =>
-                                                                                field.onChange((field.value ?? []).filter((x) => x !== id))
+                                                                                field.onChange((field.value ?? []).filter((x: string) => x !== id))
                                                                             }
                                                                             aria-label="Remove professional"
                                                                             title="Remove"

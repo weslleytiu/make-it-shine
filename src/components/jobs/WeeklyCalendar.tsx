@@ -47,11 +47,18 @@ function occurrenceKey(occ: JobOccurrence): string {
     return `${occ.job.id}-${dateToLocalDateString(occ.date)}`;
 }
 
+function getOccurrenceStatus(occ: JobOccurrence): string {
+    if (occ.job.type !== "recurring" || !occ.job.occurrenceStatuses) return occ.job.status;
+    const dateKey = dateToLocalDateString(occ.date);
+    return occ.job.occurrenceStatuses[dateKey] ?? occ.job.status;
+}
+
 export function WeeklyCalendar() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState(new Date());
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+    const [selectedOccurrenceDate, setSelectedOccurrenceDate] = useState<Date | null>(null);
     const [initialDialogDate, setInitialDialogDate] = useState<Date>(new Date());
     const weekStripRef = useRef<HTMLDivElement>(null);
 
@@ -77,8 +84,9 @@ export function WeeklyCalendar() {
         setIsDialogOpen(true);
     };
 
-    const handleEditJob = (job: Job) => {
+    const handleEditJob = (job: Job, occurrenceDate?: Date) => {
         setSelectedJob(job);
+        setSelectedOccurrenceDate(occurrenceDate ?? null);
         setIsDialogOpen(true);
     };
 
@@ -221,11 +229,11 @@ export function WeeklyCalendar() {
                             <button
                                 key={occurrenceKey(occ)}
                                 type="button"
-                                onClick={() => handleEditJob(occ.job)}
+                                onClick={() => handleEditJob(occ.job, occ.date)}
                                 className={cn(
                                     "w-full rounded-lg border p-3 text-left transition-opacity active:opacity-90",
                                     "min-h-[72px] touch-manipulation",
-                                    getStatusColor(occ.job.status)
+                                    getStatusColor(getOccurrenceStatus(occ))
                                 )}
                             >
                                 <div className="flex items-start justify-between gap-2">
@@ -282,10 +290,10 @@ export function WeeklyCalendar() {
                                     <button
                                         key={occurrenceKey(occ)}
                                         type="button"
-                                        onClick={() => handleEditJob(occ.job)}
+                                        onClick={() => handleEditJob(occ.job, occ.date)}
                                         className={cn(
                                             "w-full rounded-lg border p-2 text-left text-xs transition-opacity hover:opacity-90",
-                                            getStatusColor(occ.job.status)
+                                            getStatusColor(getOccurrenceStatus(occ))
                                         )}
                                     >
                                         <div className="font-bold">{occ.job.startTime}</div>
@@ -316,6 +324,7 @@ export function WeeklyCalendar() {
                 onOpenChange={setIsDialogOpen}
                 job={selectedJob}
                 initialDate={initialDialogDate}
+                initialOccurrenceDate={selectedOccurrenceDate}
             />
         </div>
     );

@@ -94,6 +94,8 @@ export const jobSchema = z.object({
 
     createdAt: z.date().optional(),
     recurringGroupId: z.string().uuid().optional(),
+    /** For recurring jobs: status per occurrence date (YYYY-MM-DD -> status). Filled by API. */
+    occurrenceStatuses: z.record(z.string(), z.string()).optional(),
 });
 
 export const invoiceSchema = z.object({

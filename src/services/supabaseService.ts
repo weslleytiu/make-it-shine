@@ -127,6 +127,12 @@ interface DbJobProfessional {
   cost: number;
 }
 
+interface DbJobOccurrenceStatus {
+  job_id: string;
+  occurrence_date: string;
+  status: string;
+}
+
 interface DbQuote {
   id: string;
   full_name: string;
@@ -297,7 +303,12 @@ function getEffectiveProfessionalRate(professional: Professional, serviceKind: "
   return professional.ratePerHour;
 }
 
-function dbJobToJob(db: DbJob, professionalIds: string[], professionalCosts?: { professionalId: string; cost: number }[]): Job {
+function dbJobToJob(
+  db: DbJob,
+  professionalIds: string[],
+  professionalCosts?: { professionalId: string; cost: number }[],
+  occurrenceStatuses?: Record<string, string>
+): Job {
   const serviceKind = db.service_kind ?? "regular";
   const totalPrice = db.total_price ?? 0;
   const cost = db.cost ?? 0;
@@ -317,6 +328,7 @@ function dbJobToJob(db: DbJob, professionalIds: string[], professionalCosts?: { 
     professionalCosts,
     createdAt: new Date(db.created_at),
     recurringGroupId: db.recurring_group_id || undefined,
+    occurrenceStatuses,
   };
 }
 
@@ -568,10 +580,26 @@ class SupabaseService {
       professionalCostsByJobId.set(jp.job_id, costs);
     }
 
+    const recurringJobIds = dbJobs.filter((j) => j.type === "recurring").map((j) => j.id);
+    let occurrenceStatusByJob = new Map<string, Record<string, string>>();
+    if (recurringJobIds.length > 0) {
+      const { data: occData } = await supabase
+        .from("job_occurrence_status")
+        .select("job_id, occurrence_date, status")
+        .in("job_id", recurringJobIds);
+      const rows = (occData ?? []) as DbJobOccurrenceStatus[];
+      for (const row of rows) {
+        const map = occurrenceStatusByJob.get(row.job_id) ?? {};
+        map[row.occurrence_date] = row.status;
+        occurrenceStatusByJob.set(row.job_id, map);
+      }
+    }
+
     return dbJobs.map((dbJob) => {
       const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
       const professionalCosts = professionalCostsByJobId.get(dbJob.id);
-      return dbJobToJob(dbJob, professionalIds, professionalCosts);
+      const occurrenceStatuses = occurrenceStatusByJob.get(dbJob.id);
+      return dbJobToJob(dbJob, professionalIds, professionalCosts, occurrenceStatuses);
     });
   }
 
@@ -613,10 +641,26 @@ class SupabaseService {
       professionalCostsByJobId.set(jp.job_id, costs);
     }
 
+    const recurringJobIds = dbJobs.filter((j) => j.type === "recurring").map((j) => j.id);
+    let occurrenceStatusByJob = new Map<string, Record<string, string>>();
+    if (recurringJobIds.length > 0) {
+      const { data: occData } = await supabase
+        .from("job_occurrence_status")
+        .select("job_id, occurrence_date, status")
+        .in("job_id", recurringJobIds);
+      const rows = (occData ?? []) as DbJobOccurrenceStatus[];
+      for (const row of rows) {
+        const map = occurrenceStatusByJob.get(row.job_id) ?? {};
+        map[row.occurrence_date] = row.status;
+        occurrenceStatusByJob.set(row.job_id, map);
+      }
+    }
+
     return dbJobs.map((dbJob) => {
       const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
       const professionalCosts = professionalCostsByJobId.get(dbJob.id);
-      return dbJobToJob(dbJob, professionalIds, professionalCosts);
+      const occurrenceStatuses = occurrenceStatusByJob.get(dbJob.id);
+      return dbJobToJob(dbJob, professionalIds, professionalCosts, occurrenceStatuses);
     });
   }
 
@@ -674,22 +718,42 @@ class SupabaseService {
     return dbJobToJob(dbJobResult, job.professionalIds, professionalCosts);
   }
 
-  async updateJob(id: string, updates: Partial<Job>): Promise<Job | null> {
-    const dbUpdates: Partial<DbJob> = {};
+  async updateJob(id: string, updates: Partial<Job> & { occurrenceDate?: Date }): Promise<Job | null> {
+    const allJobs = await this.getJobs();
+    const jobToUpdate = allJobs.find((j) => j.id === id);
+    if (!jobToUpdate) return null;
 
+    const occurrenceDate = updates.occurrenceDate;
+    const isRecurringOccurrenceUpdate =
+      jobToUpdate.type === "recurring" &&
+      occurrenceDate != null &&
+      updates.status !== undefined;
+
+    if (isRecurringOccurrenceUpdate) {
+      const dateStr = dateToLocalDateString(occurrenceDate);
+      const { error: occError } = await supabase
+        .from("job_occurrence_status")
+        .upsert(
+          { job_id: id, occurrence_date: dateStr, status: updates.status },
+          { onConflict: "job_id,occurrence_date" }
+        );
+      if (occError) throw new Error(`Failed to update occurrence status: ${occError.message}`);
+      if (Object.keys(updates).filter((k) => !["occurrenceDate", "status"].includes(k)).length === 0) {
+        const updatedJob = await this.getJobs();
+        return updatedJob.find((j) => j.id === id) ?? null;
+      }
+    }
+
+    const dbUpdates: Partial<DbJob> = {};
     if (updates.clientId !== undefined) dbUpdates.client_id = updates.clientId;
     if (updates.date !== undefined) dbUpdates.date = dateToLocalDateString(updates.date);
     if (updates.startTime !== undefined) dbUpdates.start_time = updates.startTime;
     if (updates.durationHours !== undefined) dbUpdates.duration_hours = updates.durationHours;
     if (updates.type !== undefined) dbUpdates.type = updates.type;
-    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.status !== undefined && !isRecurringOccurrenceUpdate) dbUpdates.status = updates.status;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes || null;
     if (updates.recurringGroupId !== undefined) dbUpdates.recurring_group_id = updates.recurringGroupId || null;
     if (updates.serviceKind !== undefined) dbUpdates.service_kind = updates.serviceKind;
-
-    const allJobs = await this.getJobs();
-    const jobToUpdate = allJobs.find((j) => j.id === id);
-    if (!jobToUpdate) return null;
 
     const professionalIds = updates.professionalIds ?? jobToUpdate.professionalIds;
     if (professionalIds.length === 0) throw new Error("At least one cleaner is required to schedule this job.");
@@ -759,7 +823,8 @@ class SupabaseService {
       }
     }
 
-    return dbJobToJob(data as DbJob, professionalIds);
+    const refreshed = await this.getJobs();
+    return refreshed.find((j) => j.id === id) ?? null;
   }
 
   async deleteJob(id: string): Promise<void> {
