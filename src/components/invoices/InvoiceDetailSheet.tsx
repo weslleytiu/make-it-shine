@@ -33,9 +33,12 @@ interface InvoiceDetailSheetProps {
   client?: InvoiceDetailClient;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called when user requests delete (confirm is handled by parent). */
+  onDelete?: (id: string) => void;
+  isDeleting?: boolean;
 }
 
-export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenChange }: InvoiceDetailSheetProps) {
+export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenChange, onDelete, isDeleting }: InvoiceDetailSheetProps) {
   const { data: jobs = [] } = useInvoiceJobs(invoice?.id ?? "");
   const uninvoicedQuery = useUninvoicedCompletedJobs(invoice?.clientId ?? "");
   const updateMutation = useUpdateInvoice();
@@ -64,12 +67,40 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
     if (!invoice || jobs.length === 0) return;
     setGeneratingPdf(true);
     try {
+      let logoSrc: string | undefined;
+      try {
+        const res = await fetch("/logo.jpeg");
+        if (res.ok) {
+          const blob = await res.blob();
+          logoSrc = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onloadend = () => resolve(r.result as string);
+            r.onerror = reject;
+            r.readAsDataURL(blob);
+          });
+        }
+      } catch {
+        // PDF will fall back to MS placeholder if logo fails to load
+      }
       const doc = (
         <InvoicePdfDocument
           invoice={invoice}
           clientName={clientName}
           clientAddress={clientAddress}
-          jobs={jobs.map((j) => ({ durationHours: j.durationHours, totalPrice: j.totalPrice ?? 0 }))}
+          logoSrc={logoSrc}
+          jobs={jobs.map((j) => {
+              const hours = j.durationHours ?? 0;
+              const total = j.totalPrice ?? 0;
+              const ratePerHour = hours > 0 ? total / hours : 0;
+              return {
+                serviceKind: j.serviceKind ?? "regular",
+                date: j.date,
+                startTime: j.startTime ?? "",
+                durationHours: hours,
+                ratePerHour,
+                totalPrice: total,
+              };
+            })}
         />
       );
       const blob = await pdf(doc).toBlob();
@@ -123,6 +154,9 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
             ? "destructive"
             : "outline";
 
+  const serviceKindLabel = (kind: string) =>
+    kind === "deep_clean" ? "Deep clean" : "Regular";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
@@ -132,44 +166,78 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
             <Badge variant={statusVariant}>{displayStatus}</Badge>
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-4">
-          <div className="text-sm text-muted-foreground">
-            <p><span className="font-medium text-foreground">Client:</span> {clientName}</p>
-            <p>Period: {format(invoice.periodStart, "dd/MM/yyyy")} – {format(invoice.periodEnd, "dd/MM/yyyy")}</p>
-            <p>Issue date: {format(invoice.issueDate, "dd/MM/yyyy")}</p>
-            <p>
-              Due date: {format(invoice.dueDate, "dd/MM/yyyy")}
-              {isOverdue && (
-                <span className="ml-2 font-medium text-destructive">
-                  (Overdue by {overdueDays} {overdueDays === 1 ? "day" : "days"})
-                </span>
+        <div className="mt-6 space-y-5">
+          {/* Bill to */}
+          <section>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Bill to</h4>
+            <div className="text-sm">
+              <p className="font-medium text-foreground">{clientName}</p>
+              {clientAddress && (
+                <p className="text-muted-foreground mt-0.5">{clientAddress}</p>
               )}
-            </p>
-          </div>
-          <div className="flex justify-between items-center border-t pt-4">
-            <span className="font-medium">Subtotal</span>
-            <span>£{invoice.subtotal.toFixed(2)}</span>
-          </div>
-          {invoice.tax > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Tax</span>
-              <span>£{invoice.tax.toFixed(2)}</span>
             </div>
-          )}
-          <div className="flex justify-between items-center font-semibold text-lg border-t pt-2">
-            <span>Total</span>
-            <span>£{invoice.total.toFixed(2)}</span>
-          </div>
+          </section>
+
+          {/* Invoice information */}
+          <section>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Invoice details</h4>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p><span className="font-medium text-foreground">Period:</span> {format(invoice.periodStart, "dd/MM/yyyy")} – {format(invoice.periodEnd, "dd/MM/yyyy")}</p>
+              <p><span className="font-medium text-foreground">Issue date:</span> {format(invoice.issueDate, "dd/MM/yyyy")}</p>
+              <p>
+                <span className="font-medium text-foreground">Due date:</span> {format(invoice.dueDate, "dd/MM/yyyy")}
+                {isOverdue && (
+                  <span className="ml-2 font-medium text-destructive">
+                    (Overdue by {overdueDays} {overdueDays === 1 ? "day" : "days"})
+                  </span>
+                )}
+              </p>
+              {invoice.createdAt && (
+                <p className="pt-1 border-t mt-2"><span className="font-medium text-foreground">Created:</span> {format(invoice.createdAt, "dd/MM/yyyy HH:mm")}</p>
+              )}
+              {invoice.updatedAt && invoice.updatedAt?.getTime() !== invoice.createdAt?.getTime() && (
+                <p><span className="font-medium text-foreground">Last updated:</span> {format(invoice.updatedAt, "dd/MM/yyyy HH:mm")}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Financial summary */}
+          <section>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Financial summary</h4>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>£{invoice.subtotal.toFixed(2)}</span>
+              </div>
+              {invoice.tax > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span>£{invoice.tax.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center font-semibold text-lg pt-2 border-t">
+                <span>Total</span>
+                <span>£{invoice.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </section>
+
           {invoice.notes && (
-            <p className="text-sm text-muted-foreground border-t pt-2">{invoice.notes}</p>
+            <section>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Notes</h4>
+              <p className="text-sm text-muted-foreground">{invoice.notes}</p>
+            </section>
           )}
 
-          <div>
+          {/* Line items (Jobs) */}
+          <section>
             <h4 className="font-medium mb-2">Jobs ({jobs.length})</h4>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Date & time</TableHead>
+                  <TableHead>Service</TableHead>
+                  <TableHead>Duration</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   {canEdit && <TableHead className="w-[40px]"></TableHead>}
                 </TableRow>
@@ -177,15 +245,17 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
               <TableBody>
                 {jobs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 3 : 2} className="text-center text-muted-foreground text-sm">
+                    <TableCell colSpan={canEdit ? 5 : 4} className="text-center text-muted-foreground text-sm">
                       No jobs in this invoice.
                     </TableCell>
                   </TableRow>
                 ) : (
                   jobs.map((job) => (
                     <TableRow key={job.id}>
-                      <TableCell>{format(job.date, "dd/MM/yyyy")} {job.startTime}</TableCell>
-                      <TableCell className="text-right">£{(job.totalPrice ?? 0).toFixed(2)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{format(job.date, "dd/MM/yyyy")} {job.startTime}</TableCell>
+                      <TableCell>{serviceKindLabel(job.serviceKind ?? "regular")}</TableCell>
+                      <TableCell>{job.durationHours}h</TableCell>
+                      <TableCell className="text-right font-medium">£{(job.totalPrice ?? 0).toFixed(2)}</TableCell>
                       {canEdit && (
                         <TableCell>
                           <Button
@@ -221,7 +291,7 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
                 <Plus className="h-4 w-4 text-muted-foreground" />
               </div>
             )}
-          </div>
+          </section>
 
           <div className="flex flex-wrap gap-2 pt-4 border-t">
             {isDraft && (
@@ -255,6 +325,17 @@ export function InvoiceDetailSheet({ invoice, clientName, client, open, onOpenCh
                   <XCircle className="mr-2 h-4 w-4" /> Cancel invoice
                 </Button>
               </>
+            )}
+            {invoice.status !== "paid" && onDelete && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => onDelete(invoice.id)}
+                disabled={isDeleting}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete invoice
+              </Button>
             )}
           </div>
         </div>

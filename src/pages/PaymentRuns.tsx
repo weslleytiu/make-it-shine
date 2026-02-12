@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { startOfWeek, endOfWeek, subWeeks, format } from "date-fns";
+import { startOfWeek, endOfWeek, subWeeks, format, getWeek } from "date-fns";
 
 const WEEK_STARTS_ON = 1; // Monday
 import { Plus, Landmark, Check, Copy } from "lucide-react";
@@ -161,7 +161,7 @@ export default function PaymentRuns() {
                           : "hover:bg-muted text-foreground"
                       }`}
                     >
-                      {format(run.periodStart, "MMM d")} – {format(run.periodEnd, "MMM d, yyyy")}
+                      Week {getWeek(run.periodStart, { weekStartsOn: WEEK_STARTS_ON })} · {format(run.periodStart, "MMM d")} – {format(run.periodEnd, "MMM d, yyyy")}
                     </button>
                   </li>
                 ))}
@@ -175,7 +175,7 @@ export default function PaymentRuns() {
             <CardTitle className="text-base flex items-center gap-2">
               <Landmark className="h-4 w-4" />
               {selectedRun
-                ? `Payment list: ${format(selectedRun.periodStart, "MMM d")} – ${format(selectedRun.periodEnd, "MMM d, yyyy")}`
+                ? `Payment list: Week ${getWeek(selectedRun.periodStart, { weekStartsOn: WEEK_STARTS_ON })} · ${format(selectedRun.periodStart, "MMM d")} – ${format(selectedRun.periodEnd, "MMM d, yyyy")}`
                 : "Select a run"}
             </CardTitle>
           </CardHeader>

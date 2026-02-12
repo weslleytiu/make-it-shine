@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useJobs } from "@/hooks/useJobs";
+import { useClients } from "@/hooks/useClients";
+import { useProfessionals } from "@/hooks/useProfessionals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +11,29 @@ import { PoundSterling, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 
 export default function Finance() {
     const { data: jobs, isLoading } = useJobs();
+    const { data: clients } = useClients();
+    const { data: professionals } = useProfessionals();
     const [monthFilter, setMonthFilter] = useState("this_month");
+
+    const getClientName = (clientId: string) =>
+        clients?.find((c) => c.id === clientId)?.name ?? "—";
+
+    type PaidToEntry = { name: string; cost: number };
+    const getPaidToEntries = (job: { professionalIds: string[]; cost?: number; professionalCosts?: { professionalId: string; cost: number }[] }): PaidToEntry[] => {
+        if (!job.professionalIds?.length) return [];
+        const totalCost = job.cost ?? 0;
+        if (job.professionalCosts?.length) {
+            return job.professionalCosts.map(({ professionalId, cost }) => ({
+                name: professionals?.find((p) => p.id === professionalId)?.name ?? "—",
+                cost,
+            }));
+        }
+        const costEach = job.professionalIds.length > 0 ? totalCost / job.professionalIds.length : 0;
+        return job.professionalIds.map((id) => ({
+            name: professionals?.find((p) => p.id === id)?.name ?? "—",
+            cost: costEach,
+        }));
+    };
 
     // Calculate dates based on filter
     const dateRange = useMemo(() => {
@@ -117,25 +141,41 @@ export default function Finance() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Date</TableHead>
+                                <TableHead>Service</TableHead>
+                                <TableHead>Client</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Revenue</TableHead>
                                 <TableHead className="text-right">Cost</TableHead>
+                                <TableHead>Paid to</TableHead>
                                 <TableHead className="text-right">Profit</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {stats.transactions.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                                         No completed jobs in this period.
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 stats.transactions.map((job) => {
                                     const profit = (job.totalPrice || 0) - (job.cost || 0);
+                                    const paidToEntries = getPaidToEntries(job);
                                     return (
                                         <TableRow key={job.id}>
                                             <TableCell>{format(job.date, "dd/MM/yyyy")}</TableCell>
+                                            <TableCell>
+                                                {job.serviceKind === "deep_clean" ? (
+                                                    <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-normal">
+                                                        Deep clean
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal">
+                                                        Regular
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="font-medium">{getClientName(job.clientId)}</TableCell>
                                             <TableCell>
                                                 <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
                                                     {job.status}
@@ -143,6 +183,13 @@ export default function Finance() {
                                             </TableCell>
                                             <TableCell className="text-right">£{job.totalPrice?.toFixed(2)}</TableCell>
                                             <TableCell className="text-right text-red-600">-£{job.cost?.toFixed(2)}</TableCell>
+                                            <TableCell className="text-muted-foreground align-top">
+                                                <div className="flex flex-col gap-0.5">
+                                                    {paidToEntries.length === 0 ? "—" : paidToEntries.map((entry, i) => (
+                                                        <span key={i}>{entry.name} — £{entry.cost.toFixed(2)}</span>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-right font-medium">
                                                 £{profit.toFixed(2)}
                                             </TableCell>

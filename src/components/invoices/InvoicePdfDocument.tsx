@@ -3,16 +3,15 @@ import {
   Page,
   View,
   Text,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import type { Invoice } from "@/lib/schemas";
-import type { Job } from "@/lib/schemas";
 import {
   INVOICE_COMPANY,
   INVOICE_PAYMENT_DETAILS,
   INVOICE_DEFAULT_TERMS,
-  INVOICE_DEFAULT_NOTES,
   INVOICE_PDF_COLORS as C,
 } from "@/lib/invoice-pdf-config";
 
@@ -68,6 +67,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
+  logoImage: {
+    width: 56,
+    height: 56,
+    objectFit: "contain",
+    marginBottom: 4,
+  },
   logoMsText: {
     fontSize: 16,
     fontWeight: "bold",
@@ -96,46 +101,52 @@ const styles = StyleSheet.create({
     color: C.text,
     textAlign: "right",
   },
-  // —— Middle: dates (left) and Bill To (right) ——
+  // —— Middle: Invoice details + Bill To (designer-aligned) ——
   middleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 16,
     marginBottom: 24,
   },
-  datesBlock: {
-    flexDirection: "column",
-    gap: 6,
-    width: "45%",
+  middleCard: {
+    flex: 1,
+    backgroundColor: C.primaryLight,
+    borderLeftWidth: 4,
+    borderLeftColor: C.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  middleCardTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: C.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 10,
   },
   dateLine: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 6,
   },
   dateLabel: {
     fontSize: 10,
-    color: C.text,
+    color: C.muted,
   },
   dateValue: {
-    fontSize: 10,
-    color: C.text,
-  },
-  billToBlock: {
-    width: "50%",
-    flexDirection: "column",
-    gap: 4,
-  },
-  billToLabel: {
-    fontSize: 10,
-    color: C.text,
-  },
-  billToName: {
     fontSize: 10,
     fontWeight: "bold",
     color: C.text,
   },
+  billToName: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: C.text,
+    marginBottom: 4,
+  },
   billToAddress: {
     fontSize: 10,
-    color: C.text,
+    color: C.muted,
     lineHeight: 1.4,
   },
   // —— Table ——
@@ -209,57 +220,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 4,
   },
-  // —— Notes ——
-  notesBlock: {
-    marginBottom: 20,
-  },
-  notesLabel: {
-    fontSize: 10,
-    color: C.text,
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 10,
-    color: C.text,
-    lineHeight: 1.4,
-  },
-  // —— Payment ——
+  // —— Payment (designer-aligned) ——
   paymentBlock: {
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    paddingTop: 14,
+    borderTopWidth: 2,
+    borderTopColor: C.primary,
+    paddingTop: 16,
+    marginTop: 4,
   },
-  paymentOptionsLabel: {
-    fontSize: 10,
-    color: C.text,
-    marginBottom: 6,
+  paymentSectionTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: C.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 10,
   },
-  termsLabel: {
-    fontSize: 10,
-    color: C.text,
+  paymentSubtitle: {
+    fontSize: 9,
+    color: C.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
     marginBottom: 8,
+  },
+  paymentCard: {
+    backgroundColor: C.primaryLight,
+    borderLeftWidth: 4,
+    borderLeftColor: C.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  paymentCardTitle: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: C.primary,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   paymentRow: {
     flexDirection: "row",
-    marginBottom: 4,
-    gap: 8,
+    marginBottom: 6,
+    alignItems: "center",
   },
   paymentLabel: {
     fontSize: 10,
-    color: C.text,
-    width: 100,
+    color: C.muted,
+    width: 110,
   },
   paymentValue: {
     fontSize: 10,
+    fontWeight: "bold",
     color: C.text,
+    flex: 1,
   },
 });
+
+const serviceKindLabel = (kind: string) =>
+  kind === "deep_clean" ? "Deep clean" : "Regular";
+
+/** Line item passed to the PDF: service, duration, hourly rate for that service, and amount. */
+export interface InvoicePdfJobLine {
+  serviceKind: string;
+  date: Date;
+  startTime: string;
+  durationHours: number;
+  ratePerHour: number;
+  totalPrice: number;
+}
 
 export interface InvoicePdfDocumentProps {
   invoice: Invoice;
   clientName: string;
   clientAddress?: string;
-  jobs: Array<Pick<Job, "durationHours" | "totalPrice">>;
+  jobs: InvoicePdfJobLine[];
+  /** Logo as data URL (base64) or URL for reliable rendering in PDF. */
+  logoSrc?: string;
 }
 
 export function InvoicePdfDocument({
@@ -267,13 +303,10 @@ export function InvoicePdfDocument({
   clientName,
   clientAddress,
   jobs,
+  logoSrc,
 }: InvoicePdfDocumentProps) {
-  const totalHours = jobs.reduce((sum, j) => sum + (j.durationHours ?? 0), 0);
-  const rate = totalHours > 0 ? invoice.subtotal / totalHours : 0;
-
   const issueDateStr = format(invoice.issueDate, "dd/MM/yyyy");
   const dueDateStr = format(invoice.dueDate, "dd/MM/yyyy");
-  const notes = invoice.notes || INVOICE_DEFAULT_NOTES;
 
   return (
     <Document>
@@ -287,9 +320,13 @@ export function InvoicePdfDocument({
             <Text style={styles.balanceDueAmount}>£{invoice.total.toFixed(2)}</Text>
           </View>
           <View style={styles.topRight}>
-            <View style={styles.logoMs}>
-              <Text style={styles.logoMsText}>MS</Text>
-            </View>
+            {logoSrc ? (
+              <Image src={logoSrc} style={styles.logoImage} />
+            ) : (
+              <View style={styles.logoMs}>
+                <Text style={styles.logoMsText}>MS</Text>
+              </View>
+            )}
             <Text style={styles.brandMakeItShine}>MAKE IT SHINE</Text>
             <Text style={styles.brandCleaningServices}>CLEANING SERVICES</Text>
             <Text style={styles.companyName}>{INVOICE_COMPANY.name}</Text>
@@ -299,24 +336,25 @@ export function InvoicePdfDocument({
           </View>
         </View>
 
-        {/* Middle: dates left, Bill To right */}
+        {/* Middle: Invoice details + Bill To (designer styling) */}
         <View style={styles.middleRow}>
-          <View style={styles.datesBlock}>
+          <View style={styles.middleCard}>
+            <Text style={styles.middleCardTitle}>Invoice details</Text>
             <View style={styles.dateLine}>
-              <Text style={styles.dateLabel}>Invoice Date :</Text>
+              <Text style={styles.dateLabel}>Invoice date</Text>
               <Text style={styles.dateValue}>{issueDateStr}</Text>
             </View>
             <View style={styles.dateLine}>
-              <Text style={styles.dateLabel}>Terms :</Text>
+              <Text style={styles.dateLabel}>Terms</Text>
               <Text style={styles.dateValue}>{INVOICE_DEFAULT_TERMS}</Text>
             </View>
             <View style={styles.dateLine}>
-              <Text style={styles.dateLabel}>Due Date :</Text>
+              <Text style={styles.dateLabel}>Due date</Text>
               <Text style={styles.dateValue}>{dueDateStr}</Text>
             </View>
           </View>
-          <View style={styles.billToBlock}>
-            <Text style={styles.billToLabel}>Bill To</Text>
+          <View style={styles.middleCard}>
+            <Text style={styles.middleCardTitle}>Bill to</Text>
             <Text style={styles.billToName}>{clientName}</Text>
             {clientAddress ? (
               <Text style={styles.billToAddress}>{clientAddress}</Text>
@@ -324,22 +362,27 @@ export function InvoicePdfDocument({
           </View>
         </View>
 
-        {/* Service details table */}
+        {/* Service details table: service, duration, hourly rate (according to service), amount */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={[styles.col1, styles.tableHeaderText]}>#</Text>
-            <Text style={[styles.col2, styles.tableHeaderText]}>Item & Description</Text>
-            <Text style={[styles.col3, styles.tableHeaderText]}>Qty</Text>
-            <Text style={[styles.col4, styles.tableHeaderText]}>Rate</Text>
+            <Text style={[styles.col2, styles.tableHeaderText]}>Service & Date</Text>
+            <Text style={[styles.col3, styles.tableHeaderText]}>Duration (h)</Text>
+            <Text style={[styles.col4, styles.tableHeaderText]}>Rate (£/h)</Text>
             <Text style={[styles.col5, styles.tableHeaderText]}>Amount</Text>
           </View>
-          <View style={styles.tableRow}>
-            <Text style={[styles.col1, styles.tableCellText]}>1</Text>
-            <Text style={[styles.col2, styles.tableCellText]}>Cleaning services</Text>
-            <Text style={[styles.col3, styles.tableCellText]}>{totalHours.toFixed(2)}</Text>
-            <Text style={[styles.col4, styles.tableCellText]}>{rate.toFixed(2)}</Text>
-            <Text style={[styles.col5, styles.tableCellText]}>{invoice.subtotal.toFixed(2)}</Text>
-          </View>
+          {jobs.map((job, index) => {
+            const description = `${serviceKindLabel(job.serviceKind)} – ${format(job.date, "dd/MM/yyyy")} ${job.startTime}`;
+            return (
+              <View key={index} style={styles.tableRow}>
+                <Text style={[styles.col1, styles.tableCellText]}>{index + 1}</Text>
+                <Text style={[styles.col2, styles.tableCellText]}>{description}</Text>
+                <Text style={[styles.col3, styles.tableCellText]}>{job.durationHours.toFixed(2)}</Text>
+                <Text style={[styles.col4, styles.tableCellText]}>{job.ratePerHour.toFixed(2)}</Text>
+                <Text style={[styles.col5, styles.tableCellText]}>{`£${job.totalPrice.toFixed(2)}`}</Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* Totals + Balance Due row with light background */}
@@ -358,31 +401,28 @@ export function InvoicePdfDocument({
           </View>
         </View>
 
-        {/* Notes */}
-        <View style={styles.notesBlock}>
-          <Text style={styles.notesLabel}>Notes</Text>
-          <Text style={styles.notesText}>{notes}</Text>
-        </View>
-
-        {/* Payment Options / Terms & Conditions / Bank details */}
+        {/* Payment Options / Bank details – designer styling */}
         <View style={styles.paymentBlock}>
-          <Text style={styles.paymentOptionsLabel}>Payment Options</Text>
-          <Text style={styles.termsLabel}>Terms & Conditions</Text>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Beneficiary</Text>
-            <Text style={styles.paymentValue}>: {INVOICE_PAYMENT_DETAILS.beneficiary}</Text>
-          </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Sort code</Text>
-            <Text style={styles.paymentValue}>: {INVOICE_PAYMENT_DETAILS.sortCode}</Text>
-          </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Account number</Text>
-            <Text style={styles.paymentValue}>: {INVOICE_PAYMENT_DETAILS.accountNumber}</Text>
-          </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Address</Text>
-            <Text style={styles.paymentValue}>: {INVOICE_PAYMENT_DETAILS.bankAddress}</Text>
+          <Text style={styles.paymentSectionTitle}>Payment Options</Text>
+          <Text style={styles.paymentSubtitle}>Terms & Conditions</Text>
+          <View style={styles.paymentCard}>
+            <Text style={styles.paymentCardTitle}>Bank transfer details</Text>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Beneficiary</Text>
+              <Text style={styles.paymentValue}>{INVOICE_PAYMENT_DETAILS.beneficiary}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Sort code</Text>
+              <Text style={styles.paymentValue}>{INVOICE_PAYMENT_DETAILS.sortCode}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Account number</Text>
+              <Text style={styles.paymentValue}>{INVOICE_PAYMENT_DETAILS.accountNumber}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Bank</Text>
+              <Text style={styles.paymentValue}>{INVOICE_PAYMENT_DETAILS.bankAddress}</Text>
+            </View>
           </View>
         </View>
       </Page>

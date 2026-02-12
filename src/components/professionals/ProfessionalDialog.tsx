@@ -50,7 +50,6 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
             email: "",
             phone: "",
             ratePerHour: 12,
-            deepCleanRatePerHour: undefined,
             status: "active",
             accountHolderName: "",
             sortCode: "",
@@ -75,7 +74,6 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                     email: professional.email,
                     phone: professional.phone,
                     ratePerHour: professional.ratePerHour,
-                    deepCleanRatePerHour: professional.deepCleanRatePerHour,
                     status: professional.status,
                     accountHolderName: professional.accountHolderName ?? "",
                     sortCode: professional.sortCode ?? "",
@@ -91,7 +89,6 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                     email: "",
                     phone: "",
                     ratePerHour: 12,
-                    deepCleanRatePerHour: undefined,
                     status: "active",
                     accountHolderName: "",
                     sortCode: "",
@@ -184,31 +181,6 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                                             <Input type="number" step="0.5" {...field} />
                                         </FormControl>
                                         <FormDescription>Amount paid to the cleaner per hour.</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control as any}
-                                name="deepCleanRatePerHour"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Deep clean rate/hour (£)</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                step="0.5"
-                                                min={0}
-                                                placeholder="Optional"
-                                                {...field}
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                    const v = e.target.value;
-                                                    field.onChange(v === "" ? undefined : Number(v));
-                                                }}
-                                            />
-                                        </FormControl>
-                                        <FormDescription>Rate for deep clean jobs. Leave empty to use standard rate.</FormDescription>
                                         <FormMessage />
                                     </FormItem>
                                 )}

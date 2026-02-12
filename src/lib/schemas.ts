@@ -77,7 +77,7 @@ export const professionalSchema = z.object({
 export const jobSchema = z.object({
     id: z.string().uuid().optional(),
     clientId: z.string().uuid("Client is required"),
-    professionalIds: z.array(z.string().uuid()).min(1, "At least one professional is required"),
+    professionalIds: z.array(z.string().uuid()).min(1, "Select at least one cleaner to schedule this job."),
     date: z.date(),
     startTime: z.string().regex(/^\d{2}:\d{2}$/, "Format HH:MM"),
     durationHours: z.coerce.number().min(0.5, "Min duration 30min"),
@@ -89,6 +89,8 @@ export const jobSchema = z.object({
     // Computed/Snapshot fields
     totalPrice: z.number().optional(),
     cost: z.number().optional(),
+    /** Per-professional cost (from job_professionals). Optional; may be set when loading from API. */
+    professionalCosts: z.array(z.object({ professionalId: z.string().uuid(), cost: z.number() })).optional(),
 
     createdAt: z.date().optional(),
     recurringGroupId: z.string().uuid().optional(),

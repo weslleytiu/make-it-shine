@@ -26,7 +26,7 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 
 export function InvoiceCard({ invoice, clientName, displayStatus, onOpen, onDelete, onMarkPaid, isDeleting, isMarkingPaid }: InvoiceCardProps) {
   const variant = statusVariant[displayStatus] ?? "outline";
-  const canDelete = invoice.status === "draft";
+  const canDelete = invoice.status !== "paid";
   const canMarkPaid = (displayStatus === "pending" || displayStatus === "overdue") && onMarkPaid;
 
   return (

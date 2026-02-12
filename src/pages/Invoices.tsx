@@ -73,7 +73,14 @@ export default function Invoices() {
 
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this invoice? This cannot be undone.")) {
-      deleteMutation.mutate(id);
+      deleteMutation.mutate(id, {
+        onSuccess: () => {
+          if (detailInvoice?.id === id) {
+            setDetailOpen(false);
+            setDetailInvoice(null);
+          }
+        },
+      });
     }
   };
 
@@ -183,7 +190,7 @@ export default function Invoices() {
               ) : (
                 filteredAndSortedInvoices.map((inv) => {
                   const displayStatus = getDisplayStatus(inv);
-                  const canDelete = inv.status === "draft";
+                  const canDelete = inv.status !== "paid";
                   const canMarkPaid = displayStatus === "pending" || displayStatus === "overdue";
                   return (
                     <TableRow
@@ -256,6 +263,8 @@ export default function Invoices() {
         client={selectedClient ? { address: selectedClient.address, city: selectedClient.city, postcode: selectedClient.postcode } : null}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+        onDelete={handleDelete}
+        isDeleting={deleteMutation.isPending}
       />
     </div>
   );

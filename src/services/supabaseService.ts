@@ -297,7 +297,7 @@ function getEffectiveProfessionalRate(professional: Professional, serviceKind: "
   return professional.ratePerHour;
 }
 
-function dbJobToJob(db: DbJob, professionalIds: string[]): Job {
+function dbJobToJob(db: DbJob, professionalIds: string[], professionalCosts?: { professionalId: string; cost: number }[]): Job {
   const serviceKind = db.service_kind ?? "regular";
   const totalPrice = db.total_price ?? 0;
   const cost = db.cost ?? 0;
@@ -314,6 +314,7 @@ function dbJobToJob(db: DbJob, professionalIds: string[]): Job {
     notes: db.notes || undefined,
     totalPrice,
     cost,
+    professionalCosts,
     createdAt: new Date(db.created_at),
     recurringGroupId: db.recurring_group_id || undefined,
   };
@@ -548,7 +549,7 @@ class SupabaseService {
     const jobIds = dbJobs.map((j) => j.id);
     const { data: jpData, error: jpError } = await supabase
       .from("job_professionals")
-      .select("job_id, professional_id")
+      .select("job_id, professional_id, cost")
       .in("job_id", jobIds);
 
     if (jpError) {
@@ -557,15 +558,20 @@ class SupabaseService {
 
     const jpRows = (jpData ?? []) as DbJobProfessional[];
     const professionalIdsByJobId = new Map<string, string[]>();
+    const professionalCostsByJobId = new Map<string, { professionalId: string; cost: number }[]>();
     for (const jp of jpRows) {
       const arr = professionalIdsByJobId.get(jp.job_id) ?? [];
       arr.push(jp.professional_id);
       professionalIdsByJobId.set(jp.job_id, arr);
+      const costs = professionalCostsByJobId.get(jp.job_id) ?? [];
+      costs.push({ professionalId: jp.professional_id, cost: Number(jp.cost) });
+      professionalCostsByJobId.set(jp.job_id, costs);
     }
 
     return dbJobs.map((dbJob) => {
       const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
-      return dbJobToJob(dbJob, professionalIds);
+      const professionalCosts = professionalCostsByJobId.get(dbJob.id);
+      return dbJobToJob(dbJob, professionalIds, professionalCosts);
     });
   }
 
@@ -588,7 +594,7 @@ class SupabaseService {
     const jobIds = dbJobs.map((j) => j.id);
     const { data: jpData, error: jpError } = await supabase
       .from("job_professionals")
-      .select("job_id, professional_id")
+      .select("job_id, professional_id, cost")
       .in("job_id", jobIds);
 
     if (jpError) {
@@ -597,23 +603,35 @@ class SupabaseService {
 
     const jpRows = (jpData ?? []) as DbJobProfessional[];
     const professionalIdsByJobId = new Map<string, string[]>();
+    const professionalCostsByJobId = new Map<string, { professionalId: string; cost: number }[]>();
     for (const jp of jpRows) {
       const arr = professionalIdsByJobId.get(jp.job_id) ?? [];
       arr.push(jp.professional_id);
       professionalIdsByJobId.set(jp.job_id, arr);
+      const costs = professionalCostsByJobId.get(jp.job_id) ?? [];
+      costs.push({ professionalId: jp.professional_id, cost: Number(jp.cost) });
+      professionalCostsByJobId.set(jp.job_id, costs);
     }
 
     return dbJobs.map((dbJob) => {
       const professionalIds = professionalIdsByJobId.get(dbJob.id) ?? [];
-      return dbJobToJob(dbJob, professionalIds);
+      const professionalCosts = professionalCostsByJobId.get(dbJob.id);
+      return dbJobToJob(dbJob, professionalIds, professionalCosts);
     });
   }
 
   async addJob(job: Omit<Job, "id" | "createdAt" | "totalPrice" | "cost">): Promise<Job> {
     const client = await this.getClient(job.clientId);
     if (!client) throw new Error("Invalid client");
+    if (!job.professionalIds?.length) throw new Error("At least one cleaner is required to schedule this job.");
 
     const serviceKind = job.serviceKind ?? "regular";
+    if (serviceKind === "deep_clean") {
+      const hasDeepCleanPrice = client.deepCleanPricePerHour != null && client.deepCleanPricePerHour > 0;
+      if (!hasDeepCleanPrice) {
+        throw new Error("This client does not have a deep clean hourly rate. Set it in the client profile or choose Regular service.");
+      }
+    }
     const clientRate = getEffectiveClientRate(client, serviceKind);
     const professionalCosts: { professionalId: string; cost: number }[] = [];
 
@@ -653,7 +671,7 @@ class SupabaseService {
       throw new Error(`Failed to link professionals to job: ${jpError.message}`);
     }
 
-    return dbJobToJob(dbJobResult, job.professionalIds);
+    return dbJobToJob(dbJobResult, job.professionalIds, professionalCosts);
   }
 
   async updateJob(id: string, updates: Partial<Job>): Promise<Job | null> {
@@ -674,9 +692,18 @@ class SupabaseService {
     if (!jobToUpdate) return null;
 
     const professionalIds = updates.professionalIds ?? jobToUpdate.professionalIds;
+    if (professionalIds.length === 0) throw new Error("At least one cleaner is required to schedule this job.");
     const durationHours = updates.durationHours ?? jobToUpdate.durationHours;
     const serviceKind = updates.serviceKind ?? jobToUpdate.serviceKind ?? "regular";
     const clientId = updates.clientId ?? jobToUpdate.clientId;
+
+    if (serviceKind === "deep_clean") {
+      const client = await this.getClient(clientId);
+      const hasDeepCleanPrice = client && client.deepCleanPricePerHour != null && client.deepCleanPricePerHour > 0;
+      if (!hasDeepCleanPrice) {
+        throw new Error("This client does not have a deep clean hourly rate. Set it in the client profile or choose Regular service.");
+      }
+    }
 
     const recalc =
       updates.durationHours !== undefined ||
@@ -711,20 +738,23 @@ class SupabaseService {
     }
     if (!data) return null;
 
-    if (updates.professionalIds !== undefined) {
+    if (Array.isArray(updates.professionalIds)) {
       await supabase.from("job_professionals").delete().eq("job_id", id);
-      const client = await this.getClient(clientId);
-      if (client && professionalIds.length > 0) {
-        const rows: { job_id: string; professional_id: string; cost: number }[] = [];
-        for (const proId of professionalIds) {
-          const pro = await this.getProfessional(proId);
-          if (pro) {
-            const cost = durationHours * getEffectiveProfessionalRate(pro, serviceKind);
-            rows.push({ job_id: id, professional_id: proId, cost });
+      if (professionalIds.length > 0) {
+        const client = await this.getClient(clientId);
+        if (client) {
+          const rows: { job_id: string; professional_id: string; cost: number }[] = [];
+          for (const proId of professionalIds) {
+            const pro = await this.getProfessional(proId);
+            if (pro) {
+              const cost = durationHours * getEffectiveProfessionalRate(pro, serviceKind);
+              rows.push({ job_id: id, professional_id: proId, cost });
+            }
           }
-        }
-        if (rows.length > 0) {
-          await supabase.from("job_professionals").insert(rows);
+          if (rows.length > 0) {
+            const { error: insertErr } = await supabase.from("job_professionals").insert(rows);
+            if (insertErr) throw new Error(`Failed to update job professionals: ${insertErr.message}`);
+          }
         }
       }
     }
@@ -854,19 +884,24 @@ class SupabaseService {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Format: INV-000942 (6-digit sequence). Last used was INV-000941, so next is 000942. */
   async getNextInvoiceNumber(): Promise<string> {
-    const year = new Date().getFullYear();
     const { data } = await supabase
       .from("invoices")
       .select("invoice_number")
-      .like("invoice_number", `INV-${year}-%`)
       .order("invoice_number", { ascending: false })
       .limit(1);
-    if (!data || data.length === 0) return `INV-${year}-001`;
-    const last = (data[0] as { invoice_number: string }).invoice_number;
-    const match = last.match(/INV-\d{4}-(\d+)/);
-    const num = match ? parseInt(match[1], 10) + 1 : 1;
-    return `INV-${year}-${String(num).padStart(3, "0")}`;
+    const lastNum = 941; // Last invoice number used before reset/import
+    let next = lastNum + 1;
+    if (data && data.length > 0) {
+      const last = (data[0] as { invoice_number: string }).invoice_number;
+      const match = last.match(/INV-0*(\d+)/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n >= lastNum) next = n + 1;
+      }
+    }
+    return `INV-${String(next).padStart(6, "0")}`;
   }
 
   // --- Payment Runs ---

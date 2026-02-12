@@ -13,10 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Professional } from "@/lib/schemas";
 
-// Schema wrapper to handle date conversion from string/date picker if needed
+// getDay(): 0 = Sun, 1 = Mon, ... 6 = Sat -> availability keys
+const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+function isAvailableOnDay(pro: Professional, date: Date): boolean {
+    const dayKey = DAY_KEYS[date.getDay()];
+    const availability = pro.availability as Record<string, boolean> | undefined;
+    return Boolean(availability?.[dayKey]);
+}
 // For now we use the main schema but might need a form-specific one if date handling is complex
 
 interface JobDialogProps {
@@ -52,7 +61,10 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
     useEffect(() => {
         if (open) {
             if (job) {
-                form.reset(job);
+                form.reset({
+                    ...job,
+                    professionalIds: Array.isArray(job.professionalIds) ? [...job.professionalIds] : [],
+                });
             } else {
                 form.reset({
                     clientId: "",
@@ -67,11 +79,35 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                 });
             }
         }
-    }, [job, open, form, initialDate]);
+    }, [open, job, initialDate]);
+
+    const activeClients = clients?.filter((c) => c.status === "active") || [];
+    const selectedClientId = form.watch("clientId");
+    const selectedClient = selectedClientId ? activeClients.find((c) => c.id === selectedClientId) : null;
+    const clientHasDeepCleanPrice =
+        selectedClient?.deepCleanPricePerHour != null && selectedClient.deepCleanPricePerHour > 0;
+
+    useEffect(() => {
+        if (open && selectedClient && !clientHasDeepCleanPrice && form.getValues("serviceKind") === "deep_clean") {
+            form.setValue("serviceKind", "regular");
+        }
+    }, [open, selectedClient, clientHasDeepCleanPrice, form]);
 
     const onSubmit = (values: z.infer<typeof jobSchema>) => {
         if (isEditing && job) {
-            updateMutation.mutate({ id: job.id, data: values }, {
+            const updatePayload = {
+                clientId: values.clientId,
+                professionalIds: values.professionalIds ?? [],
+                date: values.date,
+                startTime: values.startTime,
+                durationHours: values.durationHours,
+                type: values.type,
+                serviceKind: values.serviceKind,
+                status: values.status,
+                notes: values.notes,
+                recurringGroupId: values.recurringGroupId,
+            };
+            updateMutation.mutate({ id: job.id, data: updatePayload }, {
                 onSuccess: () => {
                     onOpenChange(false);
                     form.reset();
@@ -89,79 +125,134 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
 
     const isLoading = createMutation.isPending || updateMutation.isPending;
 
-    // Filter active clients and pros
-    const activeClients = clients?.filter(c => c.status === "active") || [];
-    const activePros = professionals?.filter(p => p.status === "active") || [];
+    const allProfessionals = professionals ?? [];
+    const activeProfessionals = allProfessionals.filter((p) => p.status === "active");
+    const selectedIds = form.watch("professionalIds") ?? [];
+    const jobDate = form.watch("date");
+    const jobDateValid = jobDate instanceof Date && !Number.isNaN(jobDate.getTime());
+
+    const professionalsAvailableOnSelectedDay =
+        jobDateValid
+            ? activeProfessionals.filter((p) => isAvailableOnDay(p, jobDate))
+            : activeProfessionals;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[calc(100%-2rem)] max-w-full sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100%-2rem)] max-w-full sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEditing ? "Edit Job" : "New Schedule"}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <FormField
-                                control={form.control as any}
-                                name="clientId"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Client</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select Client" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {activeClients.map(client => (
-                                                    <SelectItem key={client.id} value={client.id}>
-                                                        {client.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                    <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-5">
+                        <FormField
+                            control={form.control as any}
+                            name="clientId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Client</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="border-border/80 focus:ring-2 focus:ring-primary/20">
+                                                <SelectValue placeholder="Select Client" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {activeClients.map((client) => (
+                                                <SelectItem key={client.id} value={client.id}>
+                                                    {client.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
-                            <FormField
-                                control={form.control as any}
-                                name="professionalIds"
-                                render={({ field }) => (
-                                    <FormItem>
+                        <FormField
+                            control={form.control as any}
+                            name="professionalIds"
+                            render={({ field }) => {
+                                const availableToAdd = professionalsAvailableOnSelectedDay.filter(
+                                    (p) => !(field.value ?? []).includes(p.id)
+                                );
+                                return (
+                                    <FormItem className="space-y-3">
                                         <FormLabel>Professionals</FormLabel>
                                         <FormControl>
-                                            <div className={cn("rounded-md border border-input bg-background p-3 max-h-[200px] overflow-y-auto space-y-2")}>
-                                                {activePros.map((pro) => (
-                                                    <label
-                                                        key={pro.id}
-                                                        className="flex items-center gap-2 cursor-pointer rounded-sm px-2 py-1.5 hover:bg-muted/50"
-                                                    >
-                                                        <Checkbox
-                                                            checked={field.value?.includes(pro.id) ?? false}
-                                                            onCheckedChange={(checked) => {
-                                                                const next = checked
-                                                                    ? [...(field.value ?? []), pro.id]
-                                                                    : (field.value ?? []).filter((id: string) => id !== pro.id);
-                                                                field.onChange(next);
-                                                            }}
-                                                        />
-                                                        <span className="text-sm font-medium">{pro.name}</span>
-                                                    </label>
-                                                ))}
-                                                {activePros.length === 0 && (
-                                                    <p className="text-sm text-muted-foreground">No active professionals.</p>
+                                            <div className="space-y-3">
+                                                <Select
+                                                    value=""
+                                                    onValueChange={(id) => {
+                                                        if (id) field.onChange([...(field.value ?? []), id]);
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="w-full border-border/80 focus:ring-2 focus:ring-primary/20">
+                                                        <SelectValue placeholder="Add professional..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableToAdd.length === 0 ? (
+                                                            <div className="py-6 text-center text-sm text-muted-foreground">
+                                                                {professionalsAvailableOnSelectedDay.length === 0
+                                                                    ? "No professionals available on the selected day. Change the date or set availability in their profile."
+                                                                    : "All available professionals for this day have been added."}
+                                                            </div>
+                                                        ) : (
+                                                            availableToAdd.map((pro) => (
+                                                                <SelectItem key={pro.id} value={pro.id}>
+                                                                    <span className="flex items-center gap-2">
+                                                                        {pro.name}
+                                                                        {pro.status !== "active" && (
+                                                                            <Badge variant="secondary" className="text-[10px] font-normal capitalize">
+                                                                                {pro.status}
+                                                                            </Badge>
+                                                                        )}
+                                                                    </span>
+                                                                </SelectItem>
+                                                            ))
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                                {selectedIds.length > 0 && (
+                                                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                                                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                                            Selected ({selectedIds.length})
+                                                        </p>
+                                                        <ul className="flex flex-col gap-1.5">
+                                                            {selectedIds.map((id) => {
+                                                                const pro = allProfessionals.find((p) => p.id === id);
+                                                                return (
+                                                                    <li
+                                                                        key={id}
+                                                                        className="flex items-center justify-between gap-3 rounded-md bg-background/80 py-2 pl-3 pr-2 text-sm shadow-sm"
+                                                                    >
+                                                                        <span className="font-medium text-foreground truncate">{pro?.name ?? id}</span>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                                                                            onClick={() =>
+                                                                                field.onChange((field.value ?? []).filter((x) => x !== id))
+                                                                            }
+                                                                            aria-label="Remove professional"
+                                                                            title="Remove"
+                                                                        >
+                                                                            <X className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    </div>
                                                 )}
                                             </div>
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
-                                )}
-                            />
-                        </div>
+                                );
+                            }}
+                        />
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <FormField
@@ -224,7 +315,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                         <FormLabel>Type</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className="border-border/80 focus:ring-2 focus:ring-primary/20">
                                                     <SelectValue placeholder="Type" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -243,15 +334,21 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Service</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className="border-border/80 focus:ring-2 focus:ring-primary/20">
                                                     <SelectValue placeholder="Service" />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="regular">Regular</SelectItem>
-                                                <SelectItem value="deep_clean">Deep clean</SelectItem>
+                                                <SelectItem
+                                                    value="deep_clean"
+                                                    disabled={!clientHasDeepCleanPrice}
+                                                    title={!clientHasDeepCleanPrice && selectedClientId ? "This client has no deep clean hourly rate set. Set it in the client profile." : undefined}
+                                                >
+                                                    Deep clean
+                                                </SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -269,7 +366,7 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                                         <FormLabel>Status</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
-                                                <SelectTrigger>
+                                                <SelectTrigger className="border-border/80 focus:ring-2 focus:ring-primary/20">
                                                     <SelectValue placeholder="Status" />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -304,7 +401,10 @@ export function JobDialog({ open, onOpenChange, job, initialDate }: JobDialogPro
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={isLoading}>
+                            <Button
+                                type="submit"
+                                disabled={isLoading || (form.watch("professionalIds") ?? []).length === 0}
+                            >
                                 {isLoading ? "Schedule Job" : "Schedule Job"}
                             </Button>
                         </div>
