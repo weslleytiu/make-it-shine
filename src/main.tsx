@@ -5,13 +5,15 @@ import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import './index.css'
 import App from './App.tsx'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AuthProvider>
+        <App />
       <ToastContainer
         position="top-right"
         theme="light"
@@ -21,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
         pauseOnHover
         draggable
       />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

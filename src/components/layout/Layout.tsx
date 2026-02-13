@@ -1,14 +1,24 @@
 import { useState } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Sidebar, navItems } from "./Sidebar";
+import { Sidebar, useNavItems } from "./Sidebar";
+import { useAuth } from "@/hooks/useAuth";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Sparkles } from "lucide-react";
+import { Menu, Sparkles, LogOut } from "lucide-react";
 
 export function Layout() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut } = useAuth();
+    const navItems = useNavItems();
+
+    async function handleSignOut() {
+        await signOut();
+        setMobileMenuOpen(false);
+        navigate("/login", { replace: true });
+    }
 
     return (
         <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -52,7 +62,16 @@ export function Layout() {
                             );
                         })}
                     </nav>
-                    <div className="p-4 border-t border-border/60">
+                    <div className="space-y-2 border-t border-border/60 p-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                            onClick={handleSignOut}
+                        >
+                            <LogOut className="h-4 w-4" />
+                            Sign out
+                        </Button>
                         <p className="text-xs text-muted-foreground text-center">v1.0.0</p>
                     </div>
                 </SheetContent>

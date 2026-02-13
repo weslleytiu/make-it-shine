@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactForm } from "@/components/landing/ContactForm";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
@@ -20,6 +21,7 @@ function smoothScrollTo(hash: string) {
 
 export function LandingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user } = useAuth();
 
   return (
     <header
@@ -59,6 +61,15 @@ export function LandingHeader() {
               {item.label}
             </a>
           ))}
+          {user ? (
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/login">Login</Link>
+            </Button>
+          )}
           <ContactForm
             trigger={
               <Button size="sm" className="shrink-0" data-track="cta-header">
@@ -70,6 +81,15 @@ export function LandingHeader() {
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
+          {user ? (
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/login">Login</Link>
+            </Button>
+          )}
           <ContactForm
             trigger={
               <Button size="sm" className="shrink-0">
