@@ -62,7 +62,7 @@ export function WeeklyCalendar() {
     const [initialDialogDate, setInitialDialogDate] = useState<Date>(new Date());
     const weekStripRef = useRef<HTMLDivElement>(null);
 
-    const { data: jobs, isLoading } = useJobs();
+    const { data: jobs, isLoading, isError, error } = useJobs();
     const { data: clients } = useClients();
     const { data: professionals } = useProfessionals();
 
@@ -127,6 +127,17 @@ export function WeeklyCalendar() {
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
                 <p className="mt-3 text-sm font-medium">Loading schedule...</p>
+            </div>
+        );
+    }
+
+    if (isError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 text-destructive">
+                <p className="text-sm font-medium">Failed to load jobs</p>
+                <p className="mt-1 max-w-md text-center text-xs text-muted-foreground">
+                    {error instanceof Error ? error.message : "Check your connection and Supabase settings."}
+                </p>
             </div>
         );
     }
