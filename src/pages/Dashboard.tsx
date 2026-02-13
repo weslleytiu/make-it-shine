@@ -6,7 +6,7 @@ import { useProfessionals } from "@/hooks/useProfessionals";
 import { useJobs, useUpdateJob } from "@/hooks/useJobs";
 import { useQuotes, useUpdateQuote } from "@/hooks/useQuotes";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, UserCog, Calendar, Clock, Check } from "lucide-react";
+import { Users, UserCog, Calendar, Clock, Check, PoundSterling } from "lucide-react";
 import { startOfWeek, endOfWeek, isWithinInterval, format, isAfter, isSameDay } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -50,14 +50,20 @@ export default function Dashboard() {
 
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const todayJobs =
+        const todayAllJobs =
             jobs
-                ?.filter(
-                    (j) =>
-                        (j.status === "scheduled" || j.status === "in_progress") &&
-                        isSameDay(j.date, now)
-                )
-                .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")) ?? [];
+                ?.filter((j) => isSameDay(j.date, now))
+                .sort((a, b) => {
+                    const order = { scheduled: 0, in_progress: 1, completed: 2, cancelled: 3 };
+                    const statusOrder = (order[a.status as keyof typeof order] ?? 4) - (order[b.status as keyof typeof order] ?? 4);
+                    if (statusOrder !== 0) return statusOrder;
+                    return (a.startTime || "").localeCompare(b.startTime || "");
+                }) ?? [];
+
+        const todayCompletedJobs = todayAllJobs.filter((j) => j.status === "completed");
+        const todayRevenue = todayCompletedJobs.reduce((sum, j) => sum + (j.totalPrice ?? 0), 0);
+        const todayCost = todayCompletedJobs.reduce((sum, j) => sum + (j.cost ?? 0), 0);
+        const todayProfit = todayRevenue - todayCost;
 
         const upcomingJobs =
             jobs
@@ -74,7 +80,13 @@ export default function Dashboard() {
             activeClients,
             activePros,
             jobsThisWeek,
-            todayJobs,
+            todayAllJobs,
+            todaySummary: {
+                completedCount: todayCompletedJobs.length,
+                revenue: todayRevenue,
+                cost: todayCost,
+                profit: todayProfit,
+            },
             upcomingJobs,
         };
     }, [clients, pros, jobs]);
@@ -133,83 +145,124 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            {/* Today's Jobs — above Upcoming */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Today&apos;s Jobs</CardTitle>
-                    <CardDescription>
-                        Scheduled and in-progress jobs for today.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Client</TableHead>
-                                <TableHead>Date/Time</TableHead>
-                                <TableHead>Professional</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="w-[100px] text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {stats.todayJobs.length === 0 ? (
+            {/* Today's summary (financial) + Today's Jobs */}
+            <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Today&apos;s Jobs</CardTitle>
+                        <CardDescription>
+                            All jobs for today — scheduled, in progress, and completed.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                                        No jobs scheduled for today.
-                                    </TableCell>
+                                    <TableHead>Client</TableHead>
+                                    <TableHead>Date/Time</TableHead>
+                                    <TableHead>Professional</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
-                            ) : (
-                                stats.todayJobs.map((job) => (
-                                    <TableRow key={job.id}>
-                                        <TableCell className="font-medium">{getClientName(job.clientId)}</TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                                {format(job.date, "EEE d MMM")} at {job.startTime}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="flex flex-wrap gap-x-1 gap-y-0 items-center">
-                                                {renderJobProfessionals(job)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="capitalize">
-                                                {job.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="gap-1.5"
-                                                onClick={() =>
-                                                updateJob.mutate(
-                                                  { id: job.id!, data: { status: "completed" } },
-                                                  {
-                                                    onSuccess: () => toast.success("Job marked as completed."),
-                                                    onError: () => toast.error("Failed to update job."),
-                                                  }
-                                                )
-                                              }
-                                                disabled={updateJob.isPending && updateJob.variables?.id === job.id}
-                                            >
-                                                {updateJob.isPending && updateJob.variables?.id === job.id ? (
-                                                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                ) : (
-                                                    <Check className="h-3.5 w-3.5" />
-                                                )}
-                                                Done
-                                            </Button>
+                            </TableHeader>
+                            <TableBody>
+                                {stats.todayAllJobs.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                                            No jobs for today.
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                ) : (
+                                    stats.todayAllJobs.map((job) => (
+                                        <TableRow key={job.id} className={job.status === "completed" ? "bg-muted/30" : undefined}>
+                                            <TableCell className="font-medium">{getClientName(job.clientId)}</TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <Clock className="h-3 w-3 text-muted-foreground" />
+                                                    {format(job.date, "EEE d MMM")} at {job.startTime}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="flex flex-wrap gap-x-1 gap-y-0 items-center">
+                                                    {renderJobProfessionals(job)}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    variant={job.status === "completed" ? "secondary" : "outline"}
+                                                    className="capitalize"
+                                                >
+                                                    {job.status.replace("_", " ")}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {job.status === "scheduled" || job.status === "in_progress" ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="gap-1.5"
+                                                        onClick={() =>
+                                                            updateJob.mutate(
+                                                                { id: job.id!, data: { status: "completed" } },
+                                                                {
+                                                                    onSuccess: () => toast.success("Job marked as completed."),
+                                                                    onError: () => toast.error("Failed to update job."),
+                                                                }
+                                                            )
+                                                        }
+                                                        disabled={updateJob.isPending && updateJob.variables?.id === job.id}
+                                                    >
+                                                        {updateJob.isPending && updateJob.variables?.id === job.id ? (
+                                                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                        ) : (
+                                                            <Check className="h-3.5 w-3.5" />
+                                                        )}
+                                                        Done
+                                                    </Button>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">—</span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Today&apos;s summary</CardTitle>
+                        <PoundSterling className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-xs text-muted-foreground">
+                            From {stats.todaySummary.completedCount} completed job{stats.todaySummary.completedCount !== 1 ? "s" : ""} today.
+                        </p>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Revenue</span>
+                                <span className="font-medium">£{stats.todaySummary.revenue.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Cost</span>
+                                <span className="font-medium text-red-600">-£{stats.todaySummary.cost.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between border-t pt-2">
+                                <span className="text-sm font-medium text-muted-foreground">Profit</span>
+                                <span className={`font-bold ${stats.todaySummary.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    £{stats.todaySummary.profit.toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                        {stats.todaySummary.completedCount === 0 && (
+                            <p className="text-xs text-muted-foreground pt-1">
+                                Complete jobs to see revenue and profit here.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4">
