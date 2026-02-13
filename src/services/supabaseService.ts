@@ -65,6 +65,9 @@ interface DbInvoiceJob {
 interface DbProfessional {
   id: string;
   name: string;
+  address?: string | null;
+  postcode?: string | null;
+  city?: string | null;
   phone: string;
   email: string;
   rate_per_hour: number;
@@ -237,6 +240,9 @@ function dbProfessionalToProfessional(db: DbProfessional): Professional {
   return {
     id: db.id,
     name: db.name,
+    address: db.address ?? "",
+    postcode: db.postcode ?? "",
+    city: db.city ?? "",
     phone: db.phone,
     email: db.email,
     ratePerHour: db.rate_per_hour,
@@ -255,6 +261,9 @@ function professionalToDbProfessional(
 ): Omit<DbProfessional, "id" | "created_at" | "updated_at"> {
   return {
     name: pro.name,
+    address: pro.address || null,
+    postcode: pro.postcode || null,
+    city: pro.city || null,
     phone: pro.phone,
     email: pro.email,
     rate_per_hour: pro.ratePerHour,

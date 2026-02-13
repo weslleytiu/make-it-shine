@@ -61,6 +61,9 @@ const accountNumberRegex = /^\d{8}$/;
 export const professionalSchema = z.object({
     id: z.string().uuid().optional(),
     name: z.string().min(2, "Name is required"),
+    address: z.string().min(5, "Address is required"),
+    postcode: z.string().regex(postcodeRegex, "Invalid UK Postcode"),
+    city: z.string().min(2, "City is required"),
     phone: z.string().regex(phoneRegex, "Invalid UK Phone number"),
     email: z.string().email("Invalid email address"),
     ratePerHour: z.coerce.number().min(0.01, "Rate must be positive"),

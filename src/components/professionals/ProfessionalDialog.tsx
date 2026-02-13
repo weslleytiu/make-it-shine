@@ -5,9 +5,8 @@ import * as z from "zod";
 import { professionalSchema, type Professional } from "@/lib/schemas";
 import { toast } from "@/lib/toast";
 import { useCreateProfessional, useUpdateProfessional } from "@/hooks/useProfessionals";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +47,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
         resolver: zodResolver(professionalSchema) as any,
         defaultValues: {
             name: "",
+            address: "",
+            city: "London",
+            postcode: "",
             email: "",
             phone: "",
             ratePerHour: 12,
@@ -72,6 +74,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
             if (professional) {
                 form.reset({
                     name: professional.name,
+                    address: professional.address ?? "",
+                    city: professional.city ?? "London",
+                    postcode: professional.postcode ?? "",
                     email: professional.email,
                     phone: professional.phone,
                     ratePerHour: professional.ratePerHour,
@@ -87,6 +92,9 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
             } else {
                 form.reset({
                     name: "",
+                    address: "",
+                    city: "London",
+                    postcode: "",
                     email: "",
                     phone: "",
                     ratePerHour: 12,
@@ -126,100 +134,173 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{isEditing ? "Edit Professional" : "Add New Professional"}</DialogTitle>
+            <DialogContent className="sm:max-w-[580px] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                <DialogHeader className="px-6 pt-6 pb-4 pr-10 border-b border-border/60 bg-muted/30">
+                    <DialogTitle className="font-serif text-xl tracking-tight">
+                        {isEditing ? "Edit Professional" : "Add New Professional"}
+                    </DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
-                        <FormField
-                            control={form.control as any}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Full Name</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Jane Doe" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control as any}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Email</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="jane@example.com" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control as any}
-                                name="phone"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Phone</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="07700 900000" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control as any}
-                                name="ratePerHour"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Hourly Rate (£)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" step="0.5" {...field} />
-                                        </FormControl>
-                                        <FormDescription>Amount paid to the cleaner per hour.</FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control as any}
-                                name="status"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Status</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
+                    <form onSubmit={form.handleSubmit(onSubmit as any)} className="flex flex-col flex-1 min-h-0">
+                        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                            {/* Profile */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Profile
+                                </h3>
+                                <FormField
+                                    control={form.control as any}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Full name</FormLabel>
                                             <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Status" />
-                                                </SelectTrigger>
+                                                <Input placeholder="Jane Doe" {...field} />
                                             </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="active">Active</SelectItem>
-                                                <SelectItem value="vacation">Vacation</SelectItem>
-                                                <SelectItem value="inactive">Inactive</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </section>
 
-                        <div className="space-y-3">
-                            <Label className="text-base">Bank details (for payment runs)</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Account holder name, sort code and account number (UK) are used when paying this professional.
-                            </p>
-                            <div className="grid gap-4 border p-4 rounded-md">
+                            {/* Contact */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Contact
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email</FormLabel>
+                                                <FormControl>
+                                                    <Input type="email" placeholder="jane@example.com" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="phone"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Phone</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="07700 900000" {...field} />
+                                                </FormControl>
+                                                <FormDescription>UK format</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </section>
+
+                            {/* Address */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Address
+                                </h3>
+                                <FormField
+                                    control={form.control as any}
+                                    name="address"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Street address</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="123 Main St" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="city"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>City</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="London" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="postcode"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Postcode</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="SW1A 1AA" {...field} />
+                                                </FormControl>
+                                                <FormDescription>UK format</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </section>
+
+                            {/* Work & rate */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Work & rate
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control as any}
+                                        name="ratePerHour"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Hourly rate (£)</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" step="0.5" min={0} {...field} />
+                                                </FormControl>
+                                                <FormDescription>Amount paid per hour.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control as any}
+                                        name="status"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Status</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Status" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="active">Active</SelectItem>
+                                                        <SelectItem value="vacation">Vacation</SelectItem>
+                                                        <SelectItem value="inactive">Inactive</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </section>
+
+                            {/* Bank details */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Bank details
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Used for payment runs. UK account only.
+                                </p>
                                 <FormField
                                     control={form.control as any}
                                     name="accountHolderName"
@@ -243,7 +324,7 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                                                 <FormControl>
                                                     <Input placeholder="12-34-56" {...field} value={field.value ?? ""} />
                                                 </FormControl>
-                                                <FormDescription>6 digits, e.g. 12-34-56</FormDescription>
+                                                <FormDescription>6 digits</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -263,45 +344,48 @@ export function ProfessionalDialog({ open, onOpenChange, professional }: Profess
                                         )}
                                     />
                                 </div>
-                            </div>
-                        </div>
+                            </section>
 
-                        <div className="space-y-3">
-                            <Label>Availability</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border p-4 rounded-md">
-                                {DAYS.map((day) => (
-                                    <FormField
-                                        key={day.id}
-                                        control={form.control as any}
-                                        name={`availability.${day.id}`}
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                <div className="space-y-1 leading-none">
-                                                    <FormLabel>
+                            {/* Availability */}
+                            <section className="space-y-4">
+                                <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    Availability
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Days this professional can be scheduled.
+                                </p>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {DAYS.map((day) => (
+                                        <FormField
+                                            key={day.id}
+                                            control={form.control as any}
+                                            name={`availability.${day.id}`}
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                        />
+                                                    </FormControl>
+                                                    <FormLabel className="text-sm font-normal cursor-pointer flex-1">
                                                         {day.label}
                                                     </FormLabel>
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                ))}
-                            </div>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
                         </div>
-
-                        <div className="flex justify-end gap-2 pt-4">
+                        <DialogFooter className="px-6 py-4 border-t border-border/60 bg-muted/20 gap-2">
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={isLoading}>
                                 {isLoading ? "Saving..." : "Save Professional"}
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
